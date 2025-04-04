@@ -57,6 +57,7 @@ llow<!DOCTYPE html>
 
         // Function to create the trail route
 // Function to create the trail route
+// Function to create the trail route
 function createTrailRoute(start, end) {
     if (!trailsData) {
         alert("Trail data not loaded yet!");
@@ -114,7 +115,10 @@ function createTrailRoute(start, end) {
     }
 
     // Generate the route using nearest points and Turf.js
-    let route = turf.lineString(startCoordinates.concat(endCoordinates));
+    let routeCoordinates = startCoordinates.concat(endCoordinates);
+
+    // Ensure the coordinates are in [lat, lng] format for Leaflet
+    let route = turf.lineString(routeCoordinates.map(coord => [coord[1], coord[0]])); // Swap [lng, lat] to [lat, lng]
 
     if (!route) {
         alert("No valid path found on trails!");
@@ -139,6 +143,7 @@ function createTrailRoute(start, end) {
         console.error("❌ Failed to add route to the map.");
     }
 }
+
 
 
         // Handle user clicks to set start and end points
