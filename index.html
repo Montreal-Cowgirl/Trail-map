@@ -51,28 +51,36 @@
 
         // Function to find the closest point on the trail
         function findClosestTrailPoint(latlng) {
-            if (!trailsData) {
-                alert("Trail data not loaded yet!");
-                return null;
-            }
-
-            let nearest = null;
-            let minDist = Infinity;
-            
-            trailsData.features.forEach(feature => {
-                feature.geometry.coordinates.forEach(coord => {
-                    let point = L.latLng(coord[1], coord[0]); // Convert GeoJSON coordinates
-                    let dist = map.distance(latlng, point);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearest = point;
+                if (!trailsData) {
+                    alert("Trail data not loaded yet!");
+                    return null;
+                }
+        
+                let nearest = null;
+                let minDist = Infinity;
+        
+                trailsData.features.forEach(feature => {
+                    if (feature.geometry.type === "LineString") {  // Ensure we process LineStrings
+                        feature.geometry.coordinates.forEach(coord => {
+                            let point = L.latLng(coord[1], coord[0]); // Convert GeoJSON to Leaflet LatLng
+                            let dist = map.distance(latlng, point);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                nearest = point;
+                            }
+                        });
                     }
                 });
-            });
-
-            console.log("📍 Nearest point found:", nearest);
-            return nearest;
-        }
+        
+                if (!nearest) {
+                    console.error("⚠️ No closest point found!");
+                    alert("No nearby trail found. Click closer to a trail.");
+                } else {
+                    console.log("📍 Nearest Trail Point:", nearest);
+                }
+        
+                return nearest; // Returns the closest trail point
+            }
 
         // Handle user clicks to set start and end points
         let clickCount = 0;
