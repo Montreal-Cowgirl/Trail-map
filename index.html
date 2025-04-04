@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
     <style>
         #map { height: 100vh; }
     </style>
@@ -15,33 +16,79 @@
 
     <div id="map"></div>
 
-<script>
-    var map = L.map('map').setView([45.6362, -74.0345], 15);
+    <script>
+        var map = L.map('map').setView([45.6362, -74.0345], 15);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-    // Load your custom trails
-    fetch('map.geojson')
-        .then(response => response.json())
-        .then(data => {
-            L.geoJSON(data).addTo(map);
+        let trailLayer;
+        let startMarker, endMarker;
+        let routingControl;
+
+        // Load your custom trails from GeoJSON
+        fetch('map.geojson')
+            .then(response => response.json())
+            .then(data => {
+                trailLayer = L.geoJSON(data, { color: "blue" }).addTo(map);
+            });
+
+        // Function to find the closest point on the trail
+        function findClosestTrailPoint(latlng, trailData) {
+            let nearest = null;
+            let minDist = Infinity;
+            trailData.features.forEach(feature => {
+                feature.geometry.coordinates.forEach(coord => {
+                    let point = L.latLng(coord[1], coord[0]);
+                    let dist = map.distance(latlng, point);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearest = point;
+                    }
+                });
+            });
+            return nearest;
+        }
+
+        // Handle user clicks to set start and end points
+        let clickCount = 0;
+        let waypoints = [];
+
+        map.on('click', function (e) {
+            if (!trailLayer) return; // Ensure trails are loaded
+
+            fetch('map.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    let nearestPoint = findClosestTrailPoint(e.latlng, data);
+
+                    if (!nearestPoint) return;
+
+                    if (clickCount === 0) {
+                        if (startMarker) map.removeLayer(startMarker);
+                        startMarker = L.marker(nearestPoint, { color: "green" }).addTo(map);
+                        waypoints[0] = nearestPoint;
+                        clickCount++;
+                    } else if (clickCount === 1) {
+                        if (endMarker) map.removeLayer(endMarker);
+                        endMarker = L.marker(nearestPoint, { color: "red" }).addTo(map);
+                        waypoints[1] = nearestPoint;
+                        clickCount = 0; // Reset for new selection
+
+                        // Start Routing
+                        if (routingControl) map.removeControl(routingControl);
+                        routingControl = L.Routing.control({
+                            waypoints: waypoints,
+                            routeWhileDragging: true,
+                            createMarker: function () { return null; }, // Hide default markers
+                            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' })
+                        }).addTo(map);
+                    }
+                });
         });
 
-    // GraphHopper Routing (Replace 'YOUR_API_KEY' with your actual key)
-    var routingControl = L.Routing.control({
-        router: new L.Routing.GraphHopper('0029a137-6208-496f-8aa6-7c279c73bb86', {
-            serviceUrl: 'https://graphhopper.com/api/1/route'
-        }),
-        waypoints: [
-            L.latLng(45.6362, -74.0345),  // Start
-            L.latLng(45.6400, -74.0300)   // End
-        ],
-        routeWhileDragging: true
-    }).addTo(map);
-</script>
-
+    </script>
 
 </body>
 </html>
