@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+llow<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -115,7 +115,13 @@
             if (routingControl) map.removeLayer(routingControl);
 
             // Draw the route on the map
-            routingControl = L.geoJSON(route, { color: "green" }).addTo(map);
+            routingControl = L.geoJSON(route, { color: "yellow" }).addTo(map);
+                // Check if the routingControl was added correctly
+                    if (routingControl) {
+                        console.log("✅ Route added to the map!");
+                    } else {
+                        console.error("❌ Failed to add route to the map.");
+                    }
         }
 
         // Handle user clicks to set start and end points
