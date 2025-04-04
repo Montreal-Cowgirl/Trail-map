@@ -50,59 +50,60 @@
             });
 
         // Function to find the closest point on the trail
-        function createTrailRoute(start, end) {
-            if (!trailsData) {
-                alert("Trail data not loaded yet!");
-                return;
-            }
-        
-            console.log("📍 Finding route between:", start, "and", end);
-        
-            let lineStrings = [];
-        
-            // Extract all LineString paths from the GeoJSON
-            trailsData.features.forEach(feature => {
-                if (feature.geometry.type === "LineString") {
-                    lineStrings.push(turf.lineString(feature.geometry.coordinates));
-                }
-            });
-        
-            if (lineStrings.length === 0) {
-                alert("No trails available for routing!");
-                return;
-            }
-        
-            // Create a single feature collection
-            let trailNetwork = turf.featureCollection(lineStrings);
-        
-            // Find the nearest points on the trail for start and end
-            let nearestStart = turf.nearestPointOnLine(trailNetwork, turf.point([start.lng, start.lat]));
-            let nearestEnd = turf.nearestPointOnLine(trailNetwork, turf.point([end.lng, end.lat]));
-        
-            if (!nearestStart || !nearestEnd) {
-                alert("No valid trail connection found!");
-                return;
-            }
-        
-            console.log("🚀 Nearest Start:", nearestStart);
-            console.log("🚀 Nearest End:", nearestEnd);
-        
-            // Generate the shortest path using turf.shortestPath
-            let route = turf.shortestPath(nearestStart, nearestEnd, trailNetwork);
-        
-            if (!route) {
-                alert("No valid path found on trails!");
-                return;
-            }
-        
-            console.log("🛤 Trail Route Found:", route);
-        
-            // Remove existing route if exists
-            if (routingControl) map.removeLayer(routingControl);
-        
-            // Draw the route on the map
-            routingControl = L.geoJSON(route, { color: "green" }).addTo(map);
+function createTrailRoute(start, end) {
+    if (!trailsData) {
+        alert("Trail data not loaded yet!");
+        return;
+    }
+    
+    console.log("📍 Finding route between:", start, "and", end);
+    
+    let lineStrings = [];
+
+    // Extract all LineString paths from the GeoJSON
+    trailsData.features.forEach(feature => {
+        if (feature.geometry.type === "LineString") {
+            lineStrings.push(turf.lineString(feature.geometry.coordinates));
         }
+    });
+
+    if (lineStrings.length === 0) {
+        alert("No trails available for routing!");
+        return;
+    }
+
+    // Create a single feature collection
+    let trailNetwork = turf.featureCollection(lineStrings);
+
+    // Find the nearest points on the trail for start and end
+    let nearestStart = turf.nearestPointOnLine(trailNetwork, turf.point([start.lng, start.lat]));
+    let nearestEnd = turf.nearestPointOnLine(trailNetwork, turf.point([end.lng, end.lat]));
+
+    if (!nearestStart || !nearestEnd) {
+        alert("No valid trail connection found!");
+        return;
+    }
+
+    console.log("🚀 Nearest Start:", nearestStart);
+    console.log("🚀 Nearest End:", nearestEnd);
+
+    // Generate the route using nearest points and Turf.js
+    let route = turf.lineString(nearestStart.geometry.coordinates.concat(nearestEnd.geometry.coordinates));
+
+    if (!route) {
+        alert("No valid path found on trails!");
+        return;
+    }
+
+    console.log("🛤 Trail Route Found:", route);
+
+    // Remove existing route if exists
+    if (routingControl) map.removeLayer(routingControl);
+
+    // Draw the route on the map
+    routingControl = L.geoJSON(route, { color: "green" }).addTo(map);
+}
+
 
 
         // Handle user clicks to set start and end points
@@ -140,16 +141,7 @@
                 if (routingControl) map.removeControl(routingControl);
 
                 console.log("🛤 Creating route...");
-                // Create a new routing control
-                routingControl = L.Routing.control({
-                    waypoints: waypoints,
-                    routeWhileDragging: true,
-                    createMarker: function () { return null; }, // Hide default markers
-                    router: L.Routing.osrmv1({
-                        serviceUrl: 'https://router.project-osrm.org/route/v1',
-                        profile: 'foot' // Ensures it prioritizes walkable paths
-                    })
-                }).addTo(map);
+
             })
         ;
 
