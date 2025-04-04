@@ -66,7 +66,6 @@ function createTrailRoute(start, end) {
 
     console.log("📍 Creating route between:", start, "and", end);
 
-    // Check for valid start and end coordinates
     if (!start || !end) {
         console.error("❌ Invalid start or end coordinates.");
         alert("Invalid start or end point.");
@@ -90,61 +89,69 @@ function createTrailRoute(start, end) {
     // Create a single feature collection
     let trailNetwork = turf.featureCollection(lineStrings);
 
-    // Find the nearest points on the trail for start and end
+    // Find nearest points on the trail for start and end
     let nearestStart = turf.nearestPointOnLine(trailNetwork, turf.point([start.lng, start.lat]));
     let nearestEnd = turf.nearestPointOnLine(trailNetwork, turf.point([end.lng, end.lat]));
 
-    // Log nearest points for debugging
-    console.log("🚀 Nearest Start:", nearestStart);
-    console.log("🚀 Nearest End:", nearestEnd);
-
-    // Check if nearestStart and nearestEnd are valid
     if (!nearestStart || !nearestEnd) {
         alert("No valid trail connection found!");
         return;
     }
 
-    // Ensure valid coordinates are being used for the route
-    const startCoordinates = nearestStart.geometry.coordinates;
-    const endCoordinates = nearestEnd.geometry.coordinates;
+    console.log("🚀 Nearest Start:", nearestStart);
+    console.log("🚀 Nearest End:", nearestEnd);
 
-    if (!startCoordinates || !endCoordinates) {
-        console.error("❌ Invalid coordinates found for the nearest points.");
+    // Ensure valid coordinates
+    let startCoordinates = nearestStart.geometry.coordinates;
+    let endCoordinates = nearestEnd.geometry.coordinates;
+
+    if (!startCoordinates || !endCoordinates || startCoordinates.length !== 2 || endCoordinates.length !== 2) {
+        console.error("❌ Invalid coordinates for the nearest points.");
         alert("Invalid coordinates for route generation.");
         return;
     }
 
-    // Generate the route using nearest points and Turf.js
-    let routeCoordinates = startCoordinates.concat(endCoordinates);
+    // Convert to Leaflet format (lat, lng)
+    let formattedCoordinates = [
+        [startCoordinates[1], startCoordinates[0]], // Swap order
+        [endCoordinates[1], endCoordinates[0]]
+    ];
 
-    // Ensure the coordinates are in [lat, lng] format for Leaflet
-    let route = turf.lineString(routeCoordinates.map(coord => [coord[1], coord[0]])); // Swap [lng, lat] to [lat, lng]
+    // Generate a line connecting the points
+    let route = {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+            "type": "LineString",
+            "coordinates": formattedCoordinates.map(coord => [coord[1], coord[0]]) // Convert back to [lng, lat]
+        }
+    };
 
-    if (!route) {
+    if (!route.geometry.coordinates || route.geometry.coordinates.length < 2) {
         alert("No valid path found on trails!");
         return;
     }
 
     console.log("🛤 Trail Route Found:", route);
+    console.log("🗺 Route to be added:", route.geometry.coordinates);
 
-    // Check if route is correctly generated and add it to the map
-    console.log("🗺 Route to be added:", route);
+    // Remove existing route if it exists
+    if (routingControl) {
+        map.removeLayer(routingControl);
+    }
 
-    // Remove existing route if exists
-    if (routingControl) map.removeLayer(routingControl);
+    // Add the route to the map
+    routingControl = L.geoJSON(route, {
+        style: { color: "green", weight: 5 }
+    }).addTo(map);
 
-    // Draw the route on the map
-    routingControl = L.geoJSON(route, { color: "green" }).addTo(map);
-
-    // Check if the routingControl was added correctly
+    // Confirm if route is added
     if (routingControl) {
         console.log("✅ Route added to the map!");
     } else {
         console.error("❌ Failed to add route to the map.");
     }
 }
-
-
 
         // Handle user clicks to set start and end points
         let clickCount = 0;
