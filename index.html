@@ -15,29 +15,33 @@
 
     <div id="map"></div>
 
-    <script>
-        var map = L.map('map').setView([45.6362, -74.0345], 15);
+<script>
+    var map = L.map('map').setView([45.6362, -74.0345], 15);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-        // Load the GeoJSON data (replace 'trails.geojson' with your actual file path)
-        fetch('map.geojson')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data).addTo(map);
-            });
+    // Load your custom trails
+    fetch('map.geojson')
+        .then(response => response.json())
+        .then(data => {
+            L.geoJSON(data).addTo(map);
+        });
 
-        // Add route functionality
-        L.Routing.control({
-            waypoints: [
-                L.latLng(45.6362, -74.0345),  // Default start point
-                L.latLng(45.6400, -74.0300)   // Default end point
-            ],
-            routeWhileDragging: true
-        }).addTo(map);
-    </script>
+    // GraphHopper Routing (Replace 'YOUR_API_KEY' with your actual key)
+    var routingControl = L.Routing.control({
+        router: new L.Routing.GraphHopper('0029a137-6208-496f-8aa6-7c279c73bb86', {
+            serviceUrl: 'https://graphhopper.com/api/1/route'
+        }),
+        waypoints: [
+            L.latLng(45.6362, -74.0345),  // Start
+            L.latLng(45.6400, -74.0300)   // End
+        ],
+        routeWhileDragging: true
+    }).addTo(map);
+</script>
+
 
 </body>
 </html>
