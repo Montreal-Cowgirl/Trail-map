@@ -17,8 +17,11 @@
     <div id="map"></div>
 
     <script>
-        var map = L.map('map').setView([45.6362, -74.0345], 15);
+        var map = L.map('map', {
+            doubleClickZoom: false // Prevents double-click zoom so clicks register
+        }).setView([45.6362, -74.0345], 15);
 
+        // Add base map tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
@@ -28,17 +31,30 @@
         let routingControl;
         let trailsData; // Store trail data globally
 
+        console.log("Loading map.geojson...");
+        
         // Load your custom trails from GeoJSON
         fetch('map.geojson')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to load map.geojson");
+                return response.json();
+            })
             .then(data => {
                 trailsData = data; // Store globally
                 trailLayer = L.geoJSON(data, { color: "blue" }).addTo(map);
+                console.log("✅ Trails loaded successfully!");
+            })
+            .catch(error => {
+                console.error("❌ Error loading map.geojson:", error);
+                alert("Error loading map.geojson. Check console for details.");
             });
 
         // Function to find the closest point on the trail
         function findClosestTrailPoint(latlng) {
-            if (!trailsData) return null; // Ensure trails are loaded
+            if (!trailsData) {
+                alert("Trail data not loaded yet!");
+                return null;
+            }
 
             let nearest = null;
             let minDist = Infinity;
@@ -54,6 +70,7 @@
                 });
             });
 
+            console.log("📍 Nearest point found:", nearest);
             return nearest;
         }
 
@@ -62,6 +79,8 @@
         let waypoints = [];
 
         map.on('click', function (e) {
+            console.log("🖱 Click detected at:", e.latlng);
+
             let nearestPoint = findClosestTrailPoint(e.latlng);
 
             if (!nearestPoint) {
@@ -70,11 +89,13 @@
             }
 
             if (clickCount === 0) {
+                console.log("🟢 Setting START point...");
                 if (startMarker) map.removeLayer(startMarker);
                 startMarker = L.marker(nearestPoint, { draggable: true }).addTo(map);
                 waypoints[0] = nearestPoint;
                 clickCount++;
             } else if (clickCount === 1) {
+                console.log("🔴 Setting END point...");
                 if (endMarker) map.removeLayer(endMarker);
                 endMarker = L.marker(nearestPoint, { draggable: true }).addTo(map);
                 waypoints[1] = nearestPoint;
@@ -83,6 +104,7 @@
                 // Remove old route if it exists
                 if (routingControl) map.removeControl(routingControl);
 
+                console.log("🛤 Creating route...");
                 // Create a new routing control
                 routingControl = L.Routing.control({
                     waypoints: waypoints,
