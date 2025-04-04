@@ -23,7 +23,7 @@
         }).addTo(map);
 
         // Load the GeoJSON data (replace 'trails.geojson' with your actual file path)
-        fetch('trails.geojson')
+        fetch('map.geojson')
             .then(response => response.json())
             .then(data => {
                 L.geoJSON(data).addTo(map);
