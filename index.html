@@ -104,7 +104,7 @@ function buildGraph(data) {
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 20; // 20 meters threshold for snapping
+  const minSnappingThreshold = 50; // 50 meters threshold for snapping
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
