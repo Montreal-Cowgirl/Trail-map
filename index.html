@@ -24,7 +24,7 @@
   <ol id="directions"></ol>
 </div>
 <script>
-// Function to find the closest node to the clicked position
+// Helper function to find the closest node to the clicked position
 function findClosestNode(latlng) {
   const pt = turf.point([latlng.lng, latlng.lat]);
   let closest = null, minDist = Infinity;
