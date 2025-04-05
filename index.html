@@ -172,18 +172,24 @@ function findAlternativeRoutes(start, end, count = 3) {
     let altPath = dijkstra(start, end, avoidSet);
     
     if (altPath.length > 0) {
-      // Mark nodes and edges used in the alternative path as "avoided"
       altPath.forEach(c => avoidSet.add(coordKey(c)));
 
-      // Adding alternative path
-      routes.push(altPath);
+      if (arePathsDistinct(mainPath, altPath)) {
+        routes.push(altPath);
+      } else {
+        i--;
+      }
     } else {
-      // If no alternative found, stop trying further routes
       break;
     }
   }
 
   return routes;
+}
+
+function arePathsDistinct(path1, path2) {
+  const commonNodes = path1.filter((node, index) => coordKey(node) === coordKey(path2[index]));
+  return commonNodes.length < path1.length * 0.5;
 }
 
 function renderRoutes(paths) {
