@@ -41,7 +41,6 @@ let userMarker;
 function showUserLocation(position) {
   const lat = position.coords.latitude;
   const lng = position.coords.longitude;
-  const accuracy = position.coords.accuracy;
 
   if (userMarker) {
     userMarker.setLatLng([lat, lng]);
@@ -56,8 +55,6 @@ function showUserLocation(position) {
     }).addTo(map);
     map.setView([lat, lng], 15);
   }
-
-  console.log(`User location accuracy: ${accuracy} meters`);
 }
 
 // Function to handle errors when retrieving location
@@ -103,9 +100,11 @@ function buildGraph(data) {
   });
 }
 
+// Function to find the closest node based on click position
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
+
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
     const dist = latLng.distanceTo(nodeLatLng);
@@ -114,6 +113,7 @@ function findClosestNode(latLng) {
       closestNode = key;
     }
   });
+
   return closestNode;
 }
 
@@ -142,7 +142,7 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
-    // Using a simpler dummy function to simulate route finding (replace with pathfinding logic)
+    // Use a simplified dummy route logic (replace with actual pathfinding)
     const paths = findAlternativeRoutes(startNode, endNode, 3);
     if (!paths.length) return alert("No path found.");
 
@@ -151,13 +151,13 @@ map.on('click', function (e) {
   }
 });
 
-// Render Routes
+// Render Routes on the map
 function renderRoutes(paths) {
   paths.forEach((path, index) => {
     const pathCoords = path.map(node => nodeCoords[node]);
     const polyline = L.polyline(pathCoords, { color: 'green' }).addTo(map);
 
-    // Add path to route select dropdown
+    // Add route to dropdown for selection
     const option = document.createElement('option');
     option.value = index;
     option.text = `Route ${index + 1}`;
@@ -165,11 +165,12 @@ function renderRoutes(paths) {
   });
 }
 
-// Dummy alternative routes for testing (replace with actual pathfinding)
+// Dummy alternative route function (replace with actual pathfinding logic)
 function findAlternativeRoutes(startNode, endNode, numPaths) {
   const paths = [];
+  // Generate dummy paths, in real case, implement the pathfinding algorithm (e.g., A*, Dijkstra)
   for (let i = 0; i < numPaths; i++) {
-    paths.push([startNode, endNode]); // Add real pathfinding logic here
+    paths.push([startNode, endNode]); // Placeholder logic: return simple route
   }
   return paths;
 }
