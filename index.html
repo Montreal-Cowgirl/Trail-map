@@ -116,18 +116,31 @@ function showDirections(path) {
     totalDist += dist;
 
     const bearing = turf.bearing(from, to);
-    const dir = bearingToText(bearing);
+    const textDir = bearingToText(bearing);
+    const cardinalDir = bearingToCardinal(bearing);
 
     const li = document.createElement("li");
-    li.textContent = `${dir} for ${dist.toFixed(2)} km`;
+    li.textContent = `${textDir} (${cardinalDir}) for ${dist.toFixed(2)} km`;
     ol.appendChild(li);
   }
 
   document.getElementById("distance").textContent = totalDist.toFixed(2);
-  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60); // Assuming 5 km/h walk speed
+  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
 }
 
 function bearingToText(b) {
+  if (b < 0) b += 360;
+  if (b >= 337.5 || b < 22.5) return "Go straight ahead";
+  if (b < 67.5) return "Turn slight right";
+  if (b < 112.5) return "Turn right";
+  if (b < 157.5) return "Turn sharp right";
+  if (b < 202.5) return "Turn back";
+  if (b < 247.5) return "Turn sharp left";
+  if (b < 292.5) return "Turn left";
+  return "Turn slight left";
+}
+
+function bearingToCardinal(b) {
   if (b < 0) b += 360;
   const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
   return dirs[Math.round(b / 45) % 8];
