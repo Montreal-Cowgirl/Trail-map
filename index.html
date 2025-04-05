@@ -154,35 +154,68 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
-    // Dummy route generation (Replace with actual pathfinding)
-    const paths = findAlternativeRoutes(startNode, endNode, 3);
-    if (!paths.length) return alert("No path found.");
+    // Run pathfinding to generate a route
+    const route = findShortestPath(startNode, endNode);
+    if (!route) return alert("No path found.");
 
-    allPaths = paths;
-    renderRoutes(paths);
+    renderRoute(route);
   }
 });
 
-// Render Routes on the map
-function renderRoutes(paths) {
-  paths.forEach((path, index) => {
-    const pathCoords = path.map(node => nodeCoords[node]);
-    const polyline = L.polyline(pathCoords, { color: 'green' }).addTo(map);
+// Dijkstra's Algorithm to find the shortest path
+function findShortestPath(start, end) {
+  const distances = {};
+  const previous = {};
+  const nodes = new Set(Object.keys(graph));
+  let path = [];
 
-    const option = document.createElement('option');
-    option.value = index;
-    option.text = `Route ${index + 1}`;
-    document.getElementById('routeSelect').appendChild(option);
+  // Initialize distances
+  nodes.forEach(node => {
+    distances[node] = Infinity;
   });
+  distances[start] = 0;
+
+  while (nodes.size > 0) {
+    let minNode = null;
+    nodes.forEach(node => {
+      if (minNode === null || distances[node] < distances[minNode]) {
+        minNode = node;
+      }
+    });
+
+    if (minNode === end) {
+      while (previous[minNode]) {
+        path.push(minNode);
+        minNode = previous[minNode];
+      }
+      path.push(start);
+      break;
+    }
+
+    nodes.delete(minNode);
+
+    graph[minNode].forEach(neighbor => {
+      const alt = distances[minNode] + neighbor.dist;
+      if (alt < distances[neighbor.node]) {
+        distances[neighbor.node] = alt;
+        previous[neighbor.node] = minNode;
+      }
+    });
+  }
+
+  return path.reverse();
 }
 
-// Dummy alternative route function (Replace with actual pathfinding logic)
-function findAlternativeRoutes(startNode, endNode, numPaths) {
-  const paths = [];
-  for (let i = 0; i < numPaths; i++) {
-    paths.push([startNode, endNode]); // Placeholder logic: return simple route
-  }
-  return paths;
+// Render the route as a polyline on the map
+function renderRoute(path) {
+  const routeCoords = path.map(node => nodeCoords[node]);
+  const routePolyline = L.polyline(routeCoords, { color: 'green' }).addTo(map);
+  allPaths.push(routePolyline);
+
+  // Update the route options dropdown
+  const option = document.createElement('option');
+  option.text = `Route ${allPaths.length}`;
+  document.getElementById('routeSelect').appendChild(option);
 }
 </script>
 
