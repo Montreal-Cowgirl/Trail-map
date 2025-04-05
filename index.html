@@ -121,6 +121,7 @@ function findAlternativeRoutes(start, end, numRoutes = 3) {
 
   for (let i = 0; i < numRoutes; i++) {
     const path = dijkstra(start, end, avoidNodes);
+    console.log(`Path ${i+1}:`, path); // Debugging output
     if (path.length) {
       allPaths.push(path);
       path.forEach(node => avoidNodes.add(coordKey(node)));
@@ -164,7 +165,6 @@ function dijkstra(start, end, avoid = new Set()) {
 
 // Function to render alternative routes on the map
 function renderRoutes(paths) {
-  // Clear any existing route lines
   if (routeLine.length) {
     routeLine.forEach(line => map.removeLayer(line));
   }
