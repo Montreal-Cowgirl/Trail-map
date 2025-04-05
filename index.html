@@ -63,7 +63,21 @@ if (navigator.geolocation) {
   alert("Geolocation is not supported by your browser.");
 }
 
-// The rest of your map initialization code...
+// Function to find the closest node to the clicked position
+function findClosestNode(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
+  let closest = null, minDist = Infinity;
+  Object.entries(nodeCoords).forEach(([key, coord]) => {
+    const d = turf.distance(pt, turf.point(coord));
+    if (d < minDist) {
+      minDist = d;
+      closest = key;
+    }
+  });
+  return closest;
+}
+
+// Function to handle graph building
 function coordKey(coord) {
   return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
 }
@@ -105,7 +119,84 @@ function connectNearbyNodes(threshold = 0.001) {
   }
 }
 
-// Other functions related to pathfinding (like dijkstra, showDirections, etc.) remain the same...
+// Function to find alternative routes using Dijkstra
+function dijkstra(start, end, avoid = new Set()) {
+  let dist = {}, prev = {}, visited = new Set();
+  Object.keys(graph).forEach(n => dist[n] = Infinity);
+  dist[start] = 0;
+
+  while (true) {
+    let u = null, min = Infinity;
+    for (let n in dist) {
+      if (!visited.has(n) && dist[n] < min && !avoid.has(n)) {
+        min = dist[n];
+        u = n;
+      }
+    }
+    if (!u || u === end) break;
+    visited.add(u);
+    graph[u].forEach(({ node: v, dist: d }) => {
+      const alt = dist[u] + d;
+      if (alt < dist[v]) {
+        dist[v] = alt;
+        prev[v] = u;
+      }
+    });
+  }
+
+  let path = [], u = end;
+  while (prev[u]) {
+    path.unshift(nodeCoords[u]);
+    u = prev[u];
+  }
+  if (u === start) path.unshift(nodeCoords[u]);
+  return path;
+}
+
+// Function to render route directions
+function showDirections(path) {
+  let totalDist = 0;
+  const ol = document.getElementById("directions");
+  ol.innerHTML = "";
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = turf.point(path[i]);
+    const to = turf.point(path[i + 1]);
+    const dist = turf.distance(from, to);
+    totalDist += dist;
+
+    const bearing = turf.bearing(from, to);
+    const textDir = bearingToText(bearing);
+    const cardinalDir = bearingToCardinal(bearing);
+
+    const li = document.createElement("li");
+    li.textContent = `${textDir} (${cardinalDir}) for ${dist.toFixed(2)} km`;
+    ol.appendChild(li);
+  }
+
+  document.getElementById("distance").textContent = totalDist.toFixed(2);
+  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
+}
+
+function bearingToText(b) {
+  if (b < 0) b += 360;
+  if (b >= 337.5 || b < 22.5) return "Go straight ahead";
+  if (b < 67.5) return "Turn slight right";
+  if (b < 112.5) return "Turn right";
+  if (b < 157.5) return "Turn sharp right";
+  if (b < 202.5) return "Turn back";
+  if (b < 247.5) return "Turn sharp left";
+  if (b < 292.5) return "Turn left";
+  return "Turn slight left";
+}
+
+function bearingToCardinal(b) {
+  if (b < 0) b += 360;
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return dirs[Math.round(b / 45) % 8];
+}
+
+// Load GeoJSON data
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
@@ -116,6 +207,7 @@ fetch('map.geojson')
     console.log("✅ Trails loaded and graph built.");
   });
 
+// Handle map clicks to select start and end points
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
   if (!snapped) return alert("No nearby trail found.");
