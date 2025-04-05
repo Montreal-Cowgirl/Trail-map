@@ -55,9 +55,6 @@ function showUserLocation(position) {
     }).addTo(map);
     map.setView([lat, lng], 15);
   }
-
-  // Log accuracy for debugging
-  console.log(`GPS Accuracy: ${position.coords.accuracy} meters`);
 }
 
 // Function to handle errors when retrieving location
@@ -103,15 +100,17 @@ function buildGraph(data) {
   });
 }
 
-// Function to find the closest node based on click position
+// Function to find the closest node based on click position with threshold for snapping
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
+  const minSnappingThreshold = 20; // 20 meters threshold for snapping
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
     const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
-    if (dist < minDist) {
+
+    if (dist < minDist && dist <= minSnappingThreshold) {
       minDist = dist;
       closestNode = key;
     }
