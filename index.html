@@ -84,6 +84,7 @@ function buildGraph(data) {
       }
     }
   });
+  console.log("✅ Graph built:", graph); // Debugging graph structure
 }
 
 function connectNearbyNodes(threshold = 0.001) {
@@ -229,22 +230,17 @@ function bearingToText(b) {
 
 function bearingToCardinal(b) {
   if (b < 0) b += 360;
-  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return dirs[Math.round(b / 45) % 8];
+  if (b >= 337.5 || b < 22.5) return "N";
+  if (b < 67.5) return "NE";
+  if (b < 112.5) return "E";
+  if (b < 157.5) return "SE";
+  if (b < 202.5) return "S";
+  if (b < 247.5) return "SW";
+  if (b < 292.5) return "W";
+  return "NW";
 }
 
-// Load GeoJSON data
-fetch('map.geojson')
-  .then(res => res.json())
-  .then(data => {
-    trailData = data;
-    L.geoJSON(data, { color: 'blue' }).addTo(map);
-    buildGraph(data);
-    connectNearbyNodes();
-    console.log("✅ Trails loaded and graph built.");
-  });
-
-// Handle map clicks to select start and end points
+// Handle map clicks to set start and end points
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
   if (!snapped) return alert("No nearby trail found.");
@@ -267,6 +263,18 @@ map.on('click', function (e) {
     renderRoutes(paths);
   }
 });
+
+// Load trail data
+fetch('map.geojson')
+  .then(res => res.json())
+  .then(data => {
+    trailData = data;
+    L.geoJSON(data, { color: 'blue' }).addTo(map);
+    buildGraph(data);
+    connectNearbyNodes();
+    console.log("✅ Trails loaded and graph built.");
+  });
+
 </script>
 </body>
 </html>
