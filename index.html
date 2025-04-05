@@ -169,12 +169,20 @@ function findAlternativeRoutes(start, end, count = 3) {
   const avoidSet = new Set(mainPath.map(coord => coordKey(coord)));
 
   for (let i = 0; i < count - 1; i++) {
-    const altPath = dijkstra(start, end, avoidSet);
+    let altPath = dijkstra(start, end, avoidSet);
+    
     if (altPath.length > 0) {
+      // Mark nodes and edges used in the alternative path as "avoided"
       altPath.forEach(c => avoidSet.add(coordKey(c)));
+
+      // Adding alternative path
       routes.push(altPath);
-    } else break;
+    } else {
+      // If no alternative found, stop trying further routes
+      break;
+    }
   }
+
   return routes;
 }
 
