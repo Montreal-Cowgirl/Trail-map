@@ -100,21 +100,30 @@ function buildGraph(data) {
   });
 }
 
-// Function to find the closest node based on click position with threshold for snapping
+// Function to find the closest node based on click position with increased threshold
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 50; // 50 meters threshold for snapping
+  const minSnappingThreshold = 100; // 100 meters threshold for snapping (increased)
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
     const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
+
+    // Log distance for debugging
+    console.log(`Checking node: ${key}, Distance: ${dist} meters`);
 
     if (dist < minDist && dist <= minSnappingThreshold) {
       minDist = dist;
       closestNode = key;
     }
   });
+
+  if (closestNode) {
+    console.log(`Closest node found: ${closestNode} with distance: ${minDist} meters`);
+  } else {
+    console.log("No nearby trail found.");
+  }
 
   return closestNode;
 }
