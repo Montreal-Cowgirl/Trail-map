@@ -31,7 +31,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-let trailData, graph = {}, nodeCoords = {}, nodeId = 0;
+let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, routeLine = [], allPaths = [];
 let clickCount = 0, startNode = null, endNode = null;
 let userMarker;
@@ -119,15 +119,14 @@ function findClosestNode(latlng) {
 function findAlternativeRoutes(start, end, numRoutes = 3) {
   let allPaths = [];
   let avoidNodes = new Set();
-
-  // Keep track of the found paths so far
   let pathsFound = 0;
+
   while (pathsFound < numRoutes) {
     const path = dijkstra(start, end, avoidNodes);
     if (path.length > 0) {
       allPaths.push(path);
       pathsFound++;
-      path.forEach(node => avoidNodes.add(coordKey(node)));
+      path.forEach(node => avoidNodes.add(coordKey(node))); // Only mark nodes as avoided if used in the path
     } else {
       break;  // Exit if no more valid paths found
     }
@@ -279,7 +278,6 @@ fetch('map.geojson')
     connectNearbyNodes();
     console.log("✅ Trails loaded and graph built.");
   });
-
 </script>
 </body>
 </html>
