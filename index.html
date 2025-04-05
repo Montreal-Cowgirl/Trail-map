@@ -120,14 +120,19 @@ function findAlternativeRoutes(start, end, numRoutes = 3) {
   let allPaths = [];
   let avoidNodes = new Set();
 
-  for (let i = 0; i < numRoutes; i++) {
+  // Keep track of the found paths so far
+  let pathsFound = 0;
+  while (pathsFound < numRoutes) {
     const path = dijkstra(start, end, avoidNodes);
-    console.log(`Path ${i+1}:`, path); // Debugging output
-    if (path.length) {
+    if (path.length > 0) {
       allPaths.push(path);
+      pathsFound++;
       path.forEach(node => avoidNodes.add(coordKey(node)));
+    } else {
+      break;  // Exit if no more valid paths found
     }
   }
+
   return allPaths;
 }
 
