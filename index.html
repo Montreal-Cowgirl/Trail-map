@@ -33,7 +33,7 @@ let startMarker, endMarker, routeLine;
 let clickCount = 0, startNode = null, endNode = null;
 
 function coordKey(coord) {
-  return `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`;
+  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`; // Snap close nodes together
 }
 
 function addEdge(a, b, dist) {
@@ -56,6 +56,21 @@ function buildGraph(data) {
       }
     }
   });
+}
+
+function connectNearbyNodes(threshold = 0.01) { // ~10m
+  const keys = Object.keys(nodeCoords);
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      const a = keys[i];
+      const b = keys[j];
+      const d = turf.distance(turf.point(nodeCoords[a]), turf.point(nodeCoords[b]));
+      if (d < threshold) {
+        addEdge(a, b, d);
+        addEdge(b, a, d);
+      }
+    }
+  }
 }
 
 function findClosestNode(latlng) {
@@ -152,6 +167,7 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
+    connectNearbyNodes();
     console.log("✅ Trails loaded and graph built.");
   });
 
