@@ -14,6 +14,7 @@
   </style>
 </head>
 <body>
+
 <div id="map"></div>
 <div id="info">
   <label for="routeSelect"><strong>Select Route Option:</strong></label>
@@ -32,7 +33,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-let trailData, graph = {}, nodeCoords = {}, nodeId = 0;
+let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, routeLine = [], allPaths = [];
 let clickCount = 0, startNode = null, endNode = null;
 let userMarker;
@@ -75,7 +76,6 @@ if (navigator.geolocation) {
 
 // Build the graph and handle trail data
 function coordKey(coord) {
-  // Ensure correct key format (Lat, Long)
   return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
 }
 
@@ -91,7 +91,7 @@ function buildGraph(data) {
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coordKey(coords[i]);
         const b = coordKey(coords[i + 1]);
-        const dist = turf.distance(turf.point([coords[i][1], coords[i][0]]), turf.point([coords[i + 1][1], coords[i + 1][0]])); // Swap coords for Turf
+        const dist = turf.distance(turf.point([coords[i][1], coords[i][0]]), turf.point([coords[i + 1][1], coords[i + 1][0]]));
         addEdge(a, b, dist);
         addEdge(b, a, dist);
         nodeCoords[a] = coords[i];
@@ -99,21 +99,19 @@ function buildGraph(data) {
       }
     }
   });
-
-  console.log("✅ Graph built:", nodeCoords); // Log nodes to verify if they are correctly added
+  console.log("✅ Graph built:", nodeCoords);
 }
 
-// Function to find the closest node based on click position with increased threshold
+// Function to find the closest node based on click position with threshold
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 300; // Increased threshold to 300 meters
+  const minSnappingThreshold = 100; // Threshold in meters
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]); // Swap for correct lat/lng order
     const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
 
-    // Log distance for debugging
     console.log(`Checking node: ${key}, Distance: ${dist} meters`);
 
     if (dist < minDist && dist <= minSnappingThreshold) {
@@ -156,7 +154,7 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
-    // Use a simplified dummy route logic (replace with actual pathfinding)
+    // Dummy route generation (Replace with actual pathfinding)
     const paths = findAlternativeRoutes(startNode, endNode, 3);
     if (!paths.length) return alert("No path found.");
 
@@ -171,7 +169,6 @@ function renderRoutes(paths) {
     const pathCoords = path.map(node => nodeCoords[node]);
     const polyline = L.polyline(pathCoords, { color: 'green' }).addTo(map);
 
-    // Add route to dropdown for selection
     const option = document.createElement('option');
     option.value = index;
     option.text = `Route ${index + 1}`;
@@ -179,16 +176,15 @@ function renderRoutes(paths) {
   });
 }
 
-// Dummy alternative route function (replace with actual pathfinding logic)
+// Dummy alternative route function (Replace with actual pathfinding logic)
 function findAlternativeRoutes(startNode, endNode, numPaths) {
   const paths = [];
-  // Generate dummy paths, in real case, implement the pathfinding algorithm (e.g., A*, Dijkstra)
   for (let i = 0; i < numPaths; i++) {
     paths.push([startNode, endNode]); // Placeholder logic: return simple route
   }
   return paths;
 }
-
 </script>
+
 </body>
 </html>
