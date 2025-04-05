@@ -75,7 +75,8 @@ if (navigator.geolocation) {
 
 // Build the graph and handle trail data
 function coordKey(coord) {
-  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
+  // Ensure correct key format (Lat, Long)
+  return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
 }
 
 function addEdge(a, b, dist) {
@@ -90,7 +91,7 @@ function buildGraph(data) {
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coordKey(coords[i]);
         const b = coordKey(coords[i + 1]);
-        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+        const dist = turf.distance(turf.point([coords[i][1], coords[i][0]]), turf.point([coords[i + 1][1], coords[i + 1][0]])); // Swap coords for Turf
         addEdge(a, b, dist);
         addEdge(b, a, dist);
         nodeCoords[a] = coords[i];
@@ -109,7 +110,7 @@ function findClosestNode(latLng) {
   const minSnappingThreshold = 300; // Increased threshold to 300 meters
 
   Object.keys(nodeCoords).forEach(key => {
-    const nodeLatLng = L.latLng(nodeCoords[key]);
+    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]); // Swap for correct lat/lng order
     const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
 
     // Log distance for debugging
@@ -142,7 +143,7 @@ fetch('map.geojson')
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
   if (!snapped) return alert("No nearby trail found.");
-  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
+  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]); // Swap for correct lat/lng order
 
   if (clickCount === 0) {
     if (startMarker) map.removeLayer(startMarker);
