@@ -24,6 +24,20 @@
   <ol id="directions"></ol>
 </div>
 <script>
+// Function to find the closest node to the clicked position
+function findClosestNode(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
+  let closest = null, minDist = Infinity;
+  Object.entries(nodeCoords).forEach(([key, coord]) => {
+    const d = turf.distance(pt, turf.point(coord));
+    if (d < minDist) {
+      minDist = d;
+      closest = key;
+    }
+  });
+  return closest;
+}
+
 // Initialize map
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
@@ -61,20 +75,6 @@ if (navigator.geolocation) {
   navigator.geolocation.watchPosition(showUserLocation, showError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 });
 } else {
   alert("Geolocation is not supported by your browser.");
-}
-
-// Function to find the closest node to the clicked position
-function findClosestNode(latlng) {
-  const pt = turf.point([latlng.lng, latlng.lat]);
-  let closest = null, minDist = Infinity;
-  Object.entries(nodeCoords).forEach(([key, coord]) => {
-    const d = turf.distance(pt, turf.point(coord));
-    if (d < minDist) {
-      minDist = d;
-      closest = key;
-    }
-  });
-  return closest;
 }
 
 // Function to handle graph building
