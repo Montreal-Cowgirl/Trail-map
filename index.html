@@ -38,6 +38,21 @@ function findClosestNode(latlng) {
   return closest;
 }
 
+// Function to find alternative routes between two nodes (start and end)
+function findAlternativeRoutes(start, end, numRoutes = 3) {
+  let allPaths = [];
+  let avoidNodes = new Set();
+
+  for (let i = 0; i < numRoutes; i++) {
+    const path = dijkstra(start, end, avoidNodes);
+    if (path.length) {
+      allPaths.push(path);
+      path.forEach(node => avoidNodes.add(coordKey(node)));
+    }
+  }
+  return allPaths;
+}
+
 // Initialize map
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
