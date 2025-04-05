@@ -60,7 +60,7 @@ function buildGraph(data) {
   });
 }
 
-function connectNearbyNodes(threshold = 0.01) {
+function connectNearbyNodes(threshold = 0.001) {  // Reduced threshold for snapping nearby nodes
   const keys = Object.keys(nodeCoords);
   for (let i = 0; i < keys.length; i++) {
     for (let j = i + 1; j < keys.length; j++) {
@@ -68,6 +68,7 @@ function connectNearbyNodes(threshold = 0.01) {
       const b = keys[j];
       const d = turf.distance(turf.point(nodeCoords[a]), turf.point(nodeCoords[b]));
       if (d < threshold) {
+        // Snapping nodes together by adding both to each other's connections
         addEdge(a, b, d);
         addEdge(b, a, d);
       }
@@ -88,108 +89,23 @@ function findClosestNode(latlng) {
   return closest;
 }
 
-// MinHeap (Priority Queue) class for efficient Dijkstra algorithm
-class MinHeap {
-  constructor() {
-    this.heap = [];
-  }
-
-  push(item) {
-    this.heap.push(item);
-    this.bubbleUp();
-  }
-
-  pop() {
-    const item = this.heap[0];
-    const last = this.heap.pop();
-    if (this.heap.length > 0) {
-      this.heap[0] = last;
-      this.sinkDown();
-    }
-    return item;
-  }
-
-  size() {
-    return this.heap.length;
-  }
-
-  bubbleUp() {
-    let index = this.heap.length - 1;
-    const element = this.heap[index];
-    while (index > 0) {
-      let parentIndex = Math.floor((index - 1) / 2);
-      let parent = this.heap[parentIndex];
-      if (element.dist >= parent.dist) break;
-      this.heap[index] = parent;
-      index = parentIndex;
-    }
-    this.heap[index] = element;
-  }
-
-  sinkDown() {
-    let index = 0;
-    const length = this.heap.length;
-    const element = this.heap[0];
-    while (true) {
-      let leftChildIndex = 2 * index + 1;
-      let rightChildIndex = 2 * index + 2;
-      let leftChild, rightChild;
-      let swap = null;
-
-      if (leftChildIndex < length) {
-        leftChild = this.heap[leftChildIndex];
-        if (leftChild.dist < element.dist) {
-          swap = leftChildIndex;
-        }
-      }
-      if (rightChildIndex < length) {
-        rightChild = this.heap[rightChildIndex];
-        if (
-          (swap === null && rightChild.dist < element.dist) ||
-          (swap !== null && rightChild.dist < leftChild.dist)
-        ) {
-          swap = rightChildIndex;
-        }
-      }
-
-      if (swap === null) break;
-      this.heap[index] = this.heap[swap];
-      index = swap;
-    }
-    this.heap[index] = element;
-  }
-}
-
-// Optimized Dijkstra's algorithm with timeout
-function dijkstra(start, end, avoid = new Set(), maxTime = 5000) {
-  const dist = {};
-  const prev = {};
-  const visited = new Set();
-  const queue = new MinHeap(); // Priority queue (min-heap)
-
+// Dijkstra's Algorithm (same as before)
+function dijkstra(start, end, avoid = new Set()) {
+  let dist = {}, prev = {}, visited = new Set();
+  const queue = new MinHeap();
   Object.keys(graph).forEach(n => dist[n] = Infinity);
   dist[start] = 0;
   queue.push({ node: start, dist: 0 });
 
-  let startTime = Date.now();
-
   while (queue.size() > 0) {
     const u = queue.pop().node;
     if (visited.has(u)) continue;
-
     visited.add(u);
-
-    // Check for timeout
-    if (Date.now() - startTime > maxTime) {
-      console.warn("Route search timed out.");
-      return []; // Return an empty array if timeout occurs
-    }
 
     if (u === end) break;
 
     graph[u].forEach(({ node: v, dist: d }) => {
       if (visited.has(v) || avoid.has(v)) return;
-
       const alt = dist[u] + d;
       if (alt < dist[v]) {
         dist[v] = alt;
@@ -204,7 +120,6 @@ function dijkstra(start, end, avoid = new Set(), maxTime = 5000) {
     path.unshift(nodeCoords[u]);
     u = prev[u];
   }
-
   if (u === start) path.unshift(nodeCoords[u]);
   return path;
 }
@@ -292,32 +207,9 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-    connectNearbyNodes();
+    connectNearbyNodes();  // Snapping nodes together with a smaller threshold
     console.log("✅ Trails loaded and graph built.");
   });
 
 map.on('click', function (e) {
-  const snapped = findClosestNode(e.latlng);
-  if (!snapped) return alert("No nearby trail found.");
-  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
-
-  if (clickCount === 0) {
-    if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(snappedLatLng).addTo(map);
-    startNode = snapped;
-    clickCount++;
-  } else {
-    if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(snappedLatLng).addTo(map);
-    endNode = snapped;
-    clickCount = 0;
-
-    const paths = findAlternativeRoutes(startNode, endNode, 3);
-    if (!paths.length) return alert("No path found.");
-    allPaths = paths;
-    renderRoutes(paths);
-  }
-});
-</script>
-</body>
-</html>
+  const
