@@ -23,7 +23,6 @@
   <strong>Directions:</strong>
   <ol id="directions"></ol>
 </div>
-
 <script>
 // Initialize map
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
@@ -37,19 +36,30 @@ let startMarker, endMarker, routeLine = [], allPaths = [];
 let clickCount = 0, startNode = null, endNode = null;
 let userMarker;
 
-// Function to display the user's location
+// Function to display the user's location with accuracy
 function showUserLocation(position) {
   const lat = position.coords.latitude;
   const lng = position.coords.longitude;
+  const accuracy = position.coords.accuracy;
 
   if (userMarker) {
     // Update the user's marker position if it's already on the map
     userMarker.setLatLng([lat, lng]);
   } else {
     // Create a new marker for the user's location
-    userMarker = L.marker([lat, lng], { icon: L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }) }).addTo(map);
+    userMarker = L.marker([lat, lng], { 
+      icon: L.icon({ 
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png', 
+        iconSize: [25, 41], 
+        iconAnchor: [12, 41], 
+        popupAnchor: [1, -34] 
+      }) 
+    }).addTo(map);
     map.setView([lat, lng], 15); // Center the map on the user's location
   }
+
+  // Log accuracy for debugging
+  console.log(`User location accuracy: ${accuracy} meters`);
 }
 
 // Function to handle errors when retrieving location
@@ -57,20 +67,18 @@ function showError(error) {
   console.warn(`ERROR(${error.code}): ${error.message}`);
 }
 
-// Trigger geolocation request on map click
-map.on('click', function () {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(showUserLocation, showError, {
-      enableHighAccuracy: true,
-      maximumAge: 10000,
-      timeout: 5000
-    });
-  } else {
-    alert("Geolocation is not supported by your browser.");
-  }
-});
+// Watch the user's position in real time
+if (navigator.geolocation) {
+  navigator.geolocation.watchPosition(showUserLocation, showError, { 
+    enableHighAccuracy: true,  // Ensure higher accuracy
+    maximumAge: 10000,         // Use the latest available position
+    timeout: 5000              // Timeout if the position is not fetched within 5 seconds
+  });
+} else {
+  alert("Geolocation is not supported by your browser.");
+}
 
-// The rest of your map initialization code...
+// Build the graph and handle trail data
 function coordKey(coord) {
   return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
 }
@@ -97,22 +105,20 @@ function buildGraph(data) {
   });
 }
 
-function connectNearbyNodes(threshold = 0.001) {
-  const keys = Object.keys(nodeCoords);
-  for (let i = 0; i < keys.length; i++) {
-    for (let j = i + 1; j < keys.length; j++) {
-      const a = keys[i];
-      const b = keys[j];
-      const d = turf.distance(turf.point(nodeCoords[a]), turf.point(nodeCoords[b]));
-      if (d < threshold) {
-        addEdge(a, b, d);
-        addEdge(b, a, d);
-      }
+// Function to find the closest node to a given latLng
+function findClosestNode(latLng) {
+  let minDist = Infinity;
+  let closestNode = null;
+  Object.keys(nodeCoords).forEach(key => {
+    const nodeLatLng = L.latLng(nodeCoords[key]);
+    const dist = latLng.distanceTo(nodeLatLng);
+    if (dist < minDist) {
+      minDist = dist;
+      closestNode = key;
     }
-  }
+  });
+  return closestNode;
 }
-
-// Other functions related to pathfinding (like dijkstra, showDirections, etc.) remain the same...
 
 fetch('map.geojson')
   .then(res => res.json())
@@ -120,7 +126,6 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-    connectNearbyNodes();
     console.log("✅ Trails loaded and graph built.");
   });
 
@@ -140,85 +145,39 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
+    // This function should return alternative routes from startNode to endNode
     const paths = findAlternativeRoutes(startNode, endNode, 3);
     if (!paths.length) return alert("No path found.");
+
     allPaths = paths;
     renderRoutes(paths);
   }
 });
 
-// Pathfinding functions
-function findClosestNode(latlng) {
-  let closestNode = null;
-  let minDist = Infinity;
-  Object.keys(nodeCoords).forEach(key => {
-    const dist = turf.distance(turf.point([latlng.lng, latlng.lat]), turf.point(nodeCoords[key]));
-    if (dist < minDist) {
-      minDist = dist;
-      closestNode = key;
-    }
-  });
-  return closestNode;
-}
-
-function findAlternativeRoutes(start, end, numRoutes = 3) {
-  // Simple route finding logic (to be expanded based on the graph structure)
-  const routes = [];
-  // Your pathfinding algorithm, such as Dijkstra's or A*, goes here.
-  // The current example assumes that a single route is found, and will need further expansion.
-  routes.push([start, end]); // Placeholder for actual pathfinding logic
-  return routes;
-}
-
+// Function to render the routes on the map
 function renderRoutes(paths) {
-  // Clear previous routes
-  if (routeLine.length) {
-    routeLine.forEach(line => map.removeLayer(line));
-    routeLine = [];
-  }
-
-  // Render the new paths
   paths.forEach((path, index) => {
-    const coords = path.map(node => nodeCoords[node]);
-    const line = L.polyline(coords, { color: index === 0 ? 'green' : 'red' }).addTo(map);
-    routeLine.push(line);
-  });
-  updateRouteInfo(paths);
-}
+    const pathCoords = path.map(node => nodeCoords[node]);
+    const polyline = L.polyline(pathCoords, { color: 'green' }).addTo(map);
 
-function updateRouteInfo(paths) {
-  const routeSelect = document.getElementById('routeSelect');
-  routeSelect.innerHTML = ''; // Clear previous options
-
-  paths.forEach((path, index) => {
+    // Add path to route select dropdown
     const option = document.createElement('option');
     option.value = index;
-    option.innerHTML = `Route ${index + 1}`;
-    routeSelect.appendChild(option);
-  });
-
-  routeSelect.onchange = function () {
-    const selectedRoute = paths[routeSelect.value];
-    const coords = selectedRoute.map(node => nodeCoords[node]);
-    const distance = turf.length(turf.lineString(coords));
-    const time = Math.round(distance / 5 * 60); // Assuming 5 km/h walking speed
-
-    document.getElementById('distance').innerText = distance.toFixed(2);
-    document.getElementById('time').innerText = time;
-    updateDirections(selectedRoute);
-  };
-}
-
-function updateDirections(route) {
-  const directionsList = document.getElementById('directions');
-  directionsList.innerHTML = ''; // Clear previous directions
-  // For simplicity, this just lists the nodes. You can implement a more sophisticated system based on segments.
-  route.forEach((node, index) => {
-    const li = document.createElement('li');
-    li.innerHTML = `Turn at node: ${node}`;
-    directionsList.appendChild(li);
+    option.text = `Route ${index + 1}`;
+    document.getElementById('routeSelect').appendChild(option);
   });
 }
+
+// Function to find alternative routes using Dijkstra or another pathfinding algorithm
+function findAlternativeRoutes(startNode, endNode, numPaths) {
+  // Dummy pathfinding logic - Replace with actual logic using a graph-based algorithm
+  const paths = [];
+  for (let i = 0; i < numPaths; i++) {
+    paths.push([startNode, endNode]); // Replace with your pathfinding results
+  }
+  return paths;
+}
+
 </script>
 </body>
 </html>
