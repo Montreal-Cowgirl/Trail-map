@@ -1,223 +1,164 @@
-llow<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Trail Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
-    <style>
-        #map { height: 100vh; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trail Routing Map</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map {
+      height: 100vh;
+    }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
 
-    <div id="map"></div>
+  <script>
+    let map = L.map("map").setView([45.6362, -74.0345], 14);
 
-    <script>
-        var map = L.map('map', {
-            doubleClickZoom: false // Prevents double-click zoom so clicks register
-        }).setView([45.6362, -74.0345], 15);
-
-        // Add base map tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-
-        let trailLayer;
-        let startMarker, endMarker;
-        let routingControl;
-        let trailsData; // Store trail data globally
-
-        console.log("Loading map.geojson...");
-
-        // Load your custom trails from GeoJSON
-        fetch('map.geojson')
-            .then(response => response.json())
-            .then(data => {
-                // Clean up GeoJSON data by removing the extra coordinate values
-                data.features.forEach(feature => {
-                    if (feature.geometry.type === 'LineString') {
-                        feature.geometry.coordinates = feature.geometry.coordinates.map(coord => {
-                            return [coord[0], coord[1]];  // Keep only [longitude, latitude]
-                        });
-                    }
-                });
-
-                trailsData = data; // Store globally
-                trailLayer = L.geoJSON(data, { color: "blue" }).addTo(map);
-                console.log("✅ Trails loaded successfully!");
-            })
-            .catch(error => {
-                console.error("❌ Error loading map.geojson:", error);
-                alert("Error loading map.geojson. Check console for details.");
-            });
-
-        // Function to create the trail route
-// Function to create the trail route
-// Function to create the trail route
-function createTrailRoute(start, end) {
-    if (!trailsData) {
-        alert("Trail data not loaded yet!");
-        return;
-    }
-
-    console.log("📍 Creating route between:", start, "and", end);
-
-    if (!start || !end) {
-        console.error("❌ Invalid start or end coordinates.");
-        alert("Invalid start or end point.");
-        return;
-    }
-
-    let lineStrings = [];
-
-    // Extract all LineString paths from the GeoJSON
-    trailsData.features.forEach(feature => {
-        if (feature.geometry.type === "LineString") {
-            lineStrings.push(turf.lineString(feature.geometry.coordinates));
-        }
-    });
-
-    if (lineStrings.length === 0) {
-        alert("No trails available for routing!");
-        return;
-    }
-
-    // Create a single feature collection of all trail paths
-    let trailNetwork = turf.featureCollection(lineStrings);
-
-    // Find the nearest points on the trail for start and end
-    let nearestStart = turf.nearestPointOnLine(trailNetwork, turf.point([start.lng, start.lat]));
-    let nearestEnd = turf.nearestPointOnLine(trailNetwork, turf.point([end.lng, end.lat]));
-
-    if (!nearestStart || !nearestEnd) {
-        alert("No valid trail connection found!");
-        return;
-    }
-
-    console.log("🚀 Nearest Start:", nearestStart);
-    console.log("🚀 Nearest End:", nearestEnd);
-
-    let startCoordinates = nearestStart.geometry.coordinates;
-    let endCoordinates = nearestEnd.geometry.coordinates;
-
-    if (!startCoordinates || !endCoordinates) {
-        console.error("❌ Invalid coordinates for the nearest points.");
-        alert("Invalid coordinates for route generation.");
-        return;
-    }
-
-    // Find the trail segment between start and end using turf.lineSlice()
-    let bestRoute = null;
-    let shortestDistance = Infinity;
-
-    lineStrings.forEach(trail => {
-        let slicedRoute = turf.lineSlice(
-            turf.point(startCoordinates),
-            turf.point(endCoordinates),
-            trail
-        );
-
-        if (slicedRoute.geometry.coordinates.length > 1) {
-            let routeDistance = turf.length(slicedRoute, { units: "kilometers" });
-            if (routeDistance < shortestDistance) {
-                bestRoute = slicedRoute;
-                shortestDistance = routeDistance;
-            }
-        }
-    });
-
-    if (!bestRoute) {
-        alert("No valid path found on trails!");
-        return;
-    }
-
-    console.log("🛤 Trail Route Found:", bestRoute);
-
-    // Remove existing route if it exists
-    if (routingControl) {
-        map.removeLayer(routingControl);
-    }
-
-    // Draw the route on the map
-    routingControl = L.geoJSON(bestRoute, {
-        style: { color: "green", weight: 5 }
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
-    console.log("✅ Route added to the map!");
-}
+    let trailLayer;
+    let startMarker, endMarker;
+    let routeLine;
+    let trailGraph = {};
+    let allTrailCoords = [];
 
-        // Handle user clicks to set start and end points
-        let clickCount = 0;
-        let waypoints = [];
+    function coordKey(c) {
+      return c.join(",");
+    }
 
-        map.on('click', function (e) {
-            console.log("🖱 Click detected at:", e.latlng);
+    function haversineDistance(c1, c2) {
+      const R = 6371e3;
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const [lon1, lat1] = c1;
+      const [lon2, lat2] = c2;
+      const φ1 = toRad(lat1), φ2 = toRad(lat2);
+      const Δφ = toRad(lat2 - lat1);
+      const Δλ = toRad(lon2 - lon1);
 
-            let nearestPoint = findClosestTrailPoint(e.latlng);
+      const a = Math.sin(Δφ / 2) ** 2 +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
 
-            if (!nearestPoint) {
-                alert("No nearby trail found! Click closer to a trail.");
-                return;
-            }
+    function buildTrailGraph(geojson) {
+      geojson.features.forEach((feature) => {
+        if (feature.geometry.type === "LineString") {
+          const coords = feature.geometry.coordinates;
+          coords.forEach((c) => allTrailCoords.push(c));
 
-            if (clickCount === 0) {
-                console.log("🟢 Setting START point...");
-                if (startMarker) map.removeLayer(startMarker);
-                startMarker = L.marker(nearestPoint, { draggable: true }).addTo(map);
-                waypoints[0] = nearestPoint;
-                clickCount++;
-            } else if (clickCount === 1) {
-                console.log("🔴 Setting END point...");
-                if (endMarker) map.removeLayer(endMarker);
-                endMarker = L.marker(nearestPoint, { draggable: true }).addTo(map);
-                waypoints[1] = nearestPoint;
-                clickCount = 0; // Reset for new selection
+          for (let i = 0; i < coords.length - 1; i++) {
+            const a = coords[i], b = coords[i + 1];
+            const keyA = coordKey(a), keyB = coordKey(b);
+            const dist = haversineDistance(a, b);
 
-                // Debugging: Log waypoints
-                console.log("Waypoints:", waypoints);
+            if (!trailGraph[keyA]) trailGraph[keyA] = {};
+            if (!trailGraph[keyB]) trailGraph[keyB] = {};
 
-                // Call the function to create the trail route
-                createTrailRoute(waypoints[0], waypoints[1]);
-            }
-        });
-
-        // Function to find the closest point on the trail
-        function findClosestTrailPoint(latlng) {
-            if (!trailsData) {
-                alert("Trail data not loaded yet!");
-                return null;
-            }
-
-            let nearest = null;
-            let minDist = Infinity;
-
-            trailsData.features.forEach(feature => {
-                if (feature.geometry.type === "LineString") {
-                    feature.geometry.coordinates.forEach(coord => {
-                        let point = L.latLng(coord[1], coord[0]); // Convert GeoJSON to Leaflet LatLng
-                        let dist = map.distance(latlng, point);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            nearest = point;
-                        }
-                    });
-                }
-            });
-
-            if (!nearest) {
-                console.error("⚠️ No closest point found!");
-                alert("No nearby trail found. Click closer to a trail.");
-            } else {
-                console.log("📍 Nearest Trail Point:", nearest);
-            }
-
-            return nearest; // Returns the closest trail point
+            trailGraph[keyA][keyB] = dist;
+            trailGraph[keyB][keyA] = dist;
+          }
         }
-    </script>
+      });
+      console.log("✅ Trail graph built:", trailGraph);
+    }
 
+    function findClosestTrailCoord(latlng) {
+      let minDist = Infinity;
+      let closest;
+      const clickCoord = [latlng.lng, latlng.lat];
+
+      allTrailCoords.forEach((coord) => {
+        const dist = haversineDistance(coord, clickCoord);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = coord;
+        }
+      });
+
+      return closest;
+    }
+
+    function dijkstra(graph, startKey, endKey) {
+      const dist = {}, prev = {}, queue = new Set(Object.keys(graph));
+
+      for (let node of queue) dist[node] = Infinity;
+      dist[startKey] = 0;
+
+      while (queue.size > 0) {
+        let u = [...queue].reduce((a, b) => (dist[a] < dist[b] ? a : b));
+        queue.delete(u);
+
+        if (u === endKey) break;
+
+        for (let neighbor in graph[u]) {
+          let alt = dist[u] + graph[u][neighbor];
+          if (alt < dist[neighbor]) {
+            dist[neighbor] = alt;
+            prev[neighbor] = u;
+          }
+        }
+      }
+
+      const path = [];
+      let u = endKey;
+      while (u) {
+        path.unshift(u.split(",").map(Number));
+        u = prev[u];
+      }
+      return path;
+    }
+
+    function drawRoute(start, end) {
+      const startCoord = findClosestTrailCoord(start);
+      const endCoord = findClosestTrailCoord(end);
+
+      if (!startCoord || !endCoord) return alert("No close trail point found.");
+
+      const startKey = coordKey(startCoord);
+      const endKey = coordKey(endCoord);
+
+      const pathCoords = dijkstra(trailGraph, startKey, endKey);
+
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline(pathCoords.map(c => [c[1], c[0]]), { color: 'green' }).addTo(map);
+      console.log("✅ Route drawn with", pathCoords.length, "points.");
+    }
+
+    fetch("map.geojson")
+      .then((res) => res.json())
+      .then((data) => {
+        trailLayer = L.geoJSON(data, { color: "blue" }).addTo(map);
+        buildTrailGraph(data);
+      });
+
+    let clickCount = 0;
+    let startLatLng, endLatLng;
+
+    map.on("click", function (e) {
+      if (clickCount === 0) {
+        if (startMarker) map.removeLayer(startMarker);
+        startLatLng = e.latlng;
+        startMarker = L.marker(e.latlng, { draggable: true }).addTo(map);
+        clickCount++;
+      } else {
+        if (endMarker) map.removeLayer(endMarker);
+        endLatLng = e.latlng;
+        endMarker = L.marker(e.latlng, { draggable: true }).addTo(map);
+        clickCount = 0;
+
+        drawRoute(startLatLng, endLatLng);
+      }
+    });
+  </script>
 </body>
 </html>
