@@ -88,26 +88,113 @@ function findClosestNode(latlng) {
   return closest;
 }
 
-function dijkstra(start, end, avoid = new Set()) {
-  let dist = {}, prev = {}, visited = new Set();
+// MinHeap (Priority Queue) class for efficient Dijkstra algorithm
+class MinHeap {
+  constructor() {
+    this.heap = [];
+  }
+
+  push(item) {
+    this.heap.push(item);
+    this.bubbleUp();
+  }
+
+  pop() {
+    const item = this.heap[0];
+    const last = this.heap.pop();
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      this.sinkDown();
+    }
+    return item;
+  }
+
+  size() {
+    return this.heap.length;
+  }
+
+  bubbleUp() {
+    let index = this.heap.length - 1;
+    const element = this.heap[index];
+    while (index > 0) {
+      let parentIndex = Math.floor((index - 1) / 2);
+      let parent = this.heap[parentIndex];
+      if (element.dist >= parent.dist) break;
+      this.heap[index] = parent;
+      index = parentIndex;
+    }
+    this.heap[index] = element;
+  }
+
+  sinkDown() {
+    let index = 0;
+    const length = this.heap.length;
+    const element = this.heap[0];
+    while (true) {
+      let leftChildIndex = 2 * index + 1;
+      let rightChildIndex = 2 * index + 2;
+      let leftChild, rightChild;
+      let swap = null;
+
+      if (leftChildIndex < length) {
+        leftChild = this.heap[leftChildIndex];
+        if (leftChild.dist < element.dist) {
+          swap = leftChildIndex;
+        }
+      }
+      if (rightChildIndex < length) {
+        rightChild = this.heap[rightChildIndex];
+        if (
+          (swap === null && rightChild.dist < element.dist) ||
+          (swap !== null && rightChild.dist < leftChild.dist)
+        ) {
+          swap = rightChildIndex;
+        }
+      }
+
+      if (swap === null) break;
+      this.heap[index] = this.heap[swap];
+      index = swap;
+    }
+    this.heap[index] = element;
+  }
+}
+
+// Optimized Dijkstra's algorithm with timeout
+function dijkstra(start, end, avoid = new Set(), maxTime = 5000) {
+  const dist = {};
+  const prev = {};
+  const visited = new Set();
+  const queue = new MinHeap(); // Priority queue (min-heap)
+
   Object.keys(graph).forEach(n => dist[n] = Infinity);
   dist[start] = 0;
+  queue.push({ node: start, dist: 0 });
 
-  while (true) {
-    let u = null, min = Infinity;
-    for (let n in dist) {
-      if (!visited.has(n) && dist[n] < min && !avoid.has(n)) {
-        min = dist[n];
-        u = n;
-      }
-    }
-    if (!u || u === end) break;
+  let startTime = Date.now();
+
+  while (queue.size() > 0) {
+    const u = queue.pop().node;
+    if (visited.has(u)) continue;
+
     visited.add(u);
+
+    // Check for timeout
+    if (Date.now() - startTime > maxTime) {
+      console.warn("Route search timed out.");
+      return []; // Return an empty array if timeout occurs
+    }
+
+    if (u === end) break;
+
     graph[u].forEach(({ node: v, dist: d }) => {
+      if (visited.has(v) || avoid.has(v)) return;
+
       const alt = dist[u] + d;
       if (alt < dist[v]) {
         dist[v] = alt;
         prev[v] = u;
+        queue.push({ node: v, dist: alt });
       }
     });
   }
@@ -117,6 +204,7 @@ function dijkstra(start, end, avoid = new Set()) {
     path.unshift(nodeCoords[u]);
     u = prev[u];
   }
+
   if (u === start) path.unshift(nodeCoords[u]);
   return path;
 }
@@ -169,27 +257,13 @@ function findAlternativeRoutes(start, end, count = 3) {
   const avoidSet = new Set(mainPath.map(coord => coordKey(coord)));
 
   for (let i = 0; i < count - 1; i++) {
-    let altPath = dijkstra(start, end, avoidSet);
-    
+    const altPath = dijkstra(start, end, avoidSet);
     if (altPath.length > 0) {
       altPath.forEach(c => avoidSet.add(coordKey(c)));
-
-      if (arePathsDistinct(mainPath, altPath)) {
-        routes.push(altPath);
-      } else {
-        i--;
-      }
-    } else {
-      break;
-    }
+      routes.push(altPath);
+    } else break;
   }
-
   return routes;
-}
-
-function arePathsDistinct(path1, path2) {
-  const commonNodes = path1.filter((node, index) => coordKey(node) === coordKey(path2[index]));
-  return commonNodes.length < path1.length * 0.5;
 }
 
 function renderRoutes(paths) {
