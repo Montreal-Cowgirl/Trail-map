@@ -98,13 +98,15 @@ function buildGraph(data) {
       }
     }
   });
+
+  console.log("✅ Graph built:", nodeCoords); // Log nodes to verify if they are correctly added
 }
 
 // Function to find the closest node based on click position with increased threshold
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 100; // 100 meters threshold for snapping (increased)
+  const minSnappingThreshold = 300; // Increased threshold to 300 meters
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
