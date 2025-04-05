@@ -24,35 +24,6 @@
   <ol id="directions"></ol>
 </div>
 <script>
-// Helper function to find the closest node to the clicked position
-function findClosestNode(latlng) {
-  const pt = turf.point([latlng.lng, latlng.lat]);
-  let closest = null, minDist = Infinity;
-  Object.entries(nodeCoords).forEach(([key, coord]) => {
-    const d = turf.distance(pt, turf.point(coord));
-    if (d < minDist) {
-      minDist = d;
-      closest = key;
-    }
-  });
-  return closest;
-}
-
-// Function to find alternative routes between two nodes (start and end)
-function findAlternativeRoutes(start, end, numRoutes = 3) {
-  let allPaths = [];
-  let avoidNodes = new Set();
-
-  for (let i = 0; i < numRoutes; i++) {
-    const path = dijkstra(start, end, avoidNodes);
-    if (path.length) {
-      allPaths.push(path);
-      path.forEach(node => avoidNodes.add(coordKey(node)));
-    }
-  }
-  return allPaths;
-}
-
 // Initialize map
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
@@ -71,28 +42,24 @@ function showUserLocation(position) {
   const lng = position.coords.longitude;
 
   if (userMarker) {
-    // Update the user's marker position if it's already on the map
     userMarker.setLatLng([lat, lng]);
   } else {
-    // Create a new marker for the user's location
     userMarker = L.marker([lat, lng], { icon: L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }) }).addTo(map);
     map.setView([lat, lng], 15); // Center the map on the user's location
   }
 }
 
-// Function to handle errors when retrieving location
 function showError(error) {
   console.warn(`ERROR(${error.code}): ${error.message}`);
 }
 
-// Watch the user's position in real time
 if (navigator.geolocation) {
   navigator.geolocation.watchPosition(showUserLocation, showError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 });
 } else {
   alert("Geolocation is not supported by your browser.");
 }
 
-// Function to handle graph building
+// Graph building functions
 function coordKey(coord) {
   return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
 }
@@ -134,7 +101,34 @@ function connectNearbyNodes(threshold = 0.001) {
   }
 }
 
-// Function to find alternative routes using Dijkstra
+// Pathfinding functions
+function findClosestNode(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
+  let closest = null, minDist = Infinity;
+  Object.entries(nodeCoords).forEach(([key, coord]) => {
+    const d = turf.distance(pt, turf.point(coord));
+    if (d < minDist) {
+      minDist = d;
+      closest = key;
+    }
+  });
+  return closest;
+}
+
+function findAlternativeRoutes(start, end, numRoutes = 3) {
+  let allPaths = [];
+  let avoidNodes = new Set();
+
+  for (let i = 0; i < numRoutes; i++) {
+    const path = dijkstra(start, end, avoidNodes);
+    if (path.length) {
+      allPaths.push(path);
+      path.forEach(node => avoidNodes.add(coordKey(node)));
+    }
+  }
+  return allPaths;
+}
+
 function dijkstra(start, end, avoid = new Set()) {
   let dist = {}, prev = {}, visited = new Set();
   Object.keys(graph).forEach(n => dist[n] = Infinity);
@@ -168,7 +162,35 @@ function dijkstra(start, end, avoid = new Set()) {
   return path;
 }
 
-// Function to render route directions
+// Function to render alternative routes on the map
+function renderRoutes(paths) {
+  // Clear any existing route lines
+  if (routeLine.length) {
+    routeLine.forEach(line => map.removeLayer(line));
+  }
+
+  routeLine = paths.map(path => {
+    const latlngs = path.map(p => L.latLng(p[1], p[0]));
+    return L.polyline(latlngs, { color: 'red' }).addTo(map);
+  });
+
+  // Update route options in the select dropdown
+  const routeSelect = document.getElementById("routeSelect");
+  routeSelect.innerHTML = '';
+  paths.forEach((path, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = `Route ${index + 1}`;
+    routeSelect.appendChild(option);
+  });
+
+  // If there are paths, update directions
+  if (paths.length) {
+    showDirections(paths[0]);
+  }
+}
+
+// Function to display directions
 function showDirections(path) {
   let totalDist = 0;
   const ol = document.getElementById("directions");
