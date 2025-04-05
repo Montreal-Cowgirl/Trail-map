@@ -34,8 +34,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let trailData, graph = {}, nodeCoords = {};
-let startMarker, endMarker, routeLine = [], allPaths = [];
-let clickCount = 0, startNode = null, endNode = null;
+let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
 let userMarker;
 
 // Function to display the user's location
@@ -46,14 +45,7 @@ function showUserLocation(position) {
   if (userMarker) {
     userMarker.setLatLng([lat, lng]);
   } else {
-    userMarker = L.marker([lat, lng], { 
-      icon: L.icon({ 
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png', 
-        iconSize: [25, 41], 
-        iconAnchor: [12, 41], 
-        popupAnchor: [1, -34] 
-      }) 
-    }).addTo(map);
+    userMarker = L.marker([lat, lng]).addTo(map);
     map.setView([lat, lng], 15);
   }
 }
@@ -109,10 +101,8 @@ function findClosestNode(latLng) {
   const minSnappingThreshold = 100; // Threshold in meters
 
   Object.keys(nodeCoords).forEach(key => {
-    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]); // Swap for correct lat/lng order
+    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
     const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
-
-    console.log(`Checking node: ${key}, Distance: ${dist} meters`);
 
     if (dist < minDist && dist <= minSnappingThreshold) {
       minDist = dist;
@@ -120,15 +110,10 @@ function findClosestNode(latLng) {
     }
   });
 
-  if (closestNode) {
-    console.log(`Closest node found: ${closestNode} with distance: ${minDist} meters`);
-  } else {
-    console.log("No nearby trail found.");
-  }
-
   return closestNode;
 }
 
+// Load GeoJSON and build graph
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
@@ -141,7 +126,7 @@ fetch('map.geojson')
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
   if (!snapped) return alert("No nearby trail found.");
-  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]); // Swap for correct lat/lng order
+  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]); 
 
   if (clickCount === 0) {
     if (startMarker) map.removeLayer(startMarker);
@@ -210,11 +195,10 @@ function findShortestPath(start, end) {
 function renderRoute(path) {
   const routeCoords = path.map(node => nodeCoords[node]);
   const routePolyline = L.polyline(routeCoords, { color: 'green' }).addTo(map);
-  allPaths.push(routePolyline);
-
+  
   // Update the route options dropdown
   const option = document.createElement('option');
-  option.text = `Route ${allPaths.length}`;
+  option.text = `Route ${allPaths.length + 1}`;
   document.getElementById('routeSelect').appendChild(option);
 }
 </script>
