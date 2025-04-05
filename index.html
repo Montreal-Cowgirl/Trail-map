@@ -9,13 +9,15 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
   <style>
     body { margin: 0; font-family: sans-serif; }
-    #map { height: 90vh; width: 100vw; }
+    #map { height: 80vh; width: 100vw; }
     #info { padding: 1rem; background: #f5f5f5; }
   </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="info">
+  <label for="routeSelect"><strong>Select Route Option:</strong></label>
+  <select id="routeSelect"></select><br /><br />
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
@@ -29,11 +31,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let trailData, graph = {}, nodeCoords = {}, nodeId = 0;
-let startMarker, endMarker, routeLine;
+let startMarker, endMarker, routeLine = [], allPaths = [];
 let clickCount = 0, startNode = null, endNode = null;
 
 function coordKey(coord) {
-  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`; // Snap close nodes together
+  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
 }
 
 function addEdge(a, b, dist) {
@@ -58,7 +60,7 @@ function buildGraph(data) {
   });
 }
 
-function connectNearbyNodes(threshold = 0.01) { // ~10m
+function connectNearbyNodes(threshold = 0.01) {
   const keys = Object.keys(nodeCoords);
   for (let i = 0; i < keys.length; i++) {
     for (let j = i + 1; j < keys.length; j++) {
@@ -86,7 +88,7 @@ function findClosestNode(latlng) {
   return closest;
 }
 
-function dijkstra(start, end) {
+function dijkstra(start, end, avoid = new Set()) {
   let dist = {}, prev = {}, visited = new Set();
   Object.keys(graph).forEach(n => dist[n] = Infinity);
   dist[start] = 0;
@@ -94,7 +96,7 @@ function dijkstra(start, end) {
   while (true) {
     let u = null, min = Infinity;
     for (let n in dist) {
-      if (!visited.has(n) && dist[n] < min) {
+      if (!visited.has(n) && dist[n] < min && !avoid.has(n)) {
         min = dist[n];
         u = n;
       }
@@ -161,6 +163,41 @@ function bearingToCardinal(b) {
   return dirs[Math.round(b / 45) % 8];
 }
 
+function findAlternativeRoutes(start, end, count = 3) {
+  const mainPath = dijkstra(start, end);
+  const routes = [mainPath];
+  const avoidSet = new Set(mainPath.map(coord => coordKey(coord)));
+
+  for (let i = 0; i < count - 1; i++) {
+    const altPath = dijkstra(start, end, avoidSet);
+    if (altPath.length > 0) {
+      altPath.forEach(c => avoidSet.add(coordKey(c)));
+      routes.push(altPath);
+    } else break;
+  }
+  return routes;
+}
+
+function renderRoutes(paths) {
+  routeLine.forEach(line => map.removeLayer(line));
+  routeLine = [];
+  const colors = ['green', 'orange', 'purple'];
+  const select = document.getElementById("routeSelect");
+  select.innerHTML = "";
+
+  paths.forEach((path, idx) => {
+    const line = L.polyline(path.map(c => [c[1], c[0]]), { color: colors[idx] }).addTo(map);
+    routeLine.push(line);
+    const option = document.createElement("option");
+    option.value = idx;
+    option.textContent = `Route ${idx + 1} (${colors[idx]})`;
+    select.appendChild(option);
+  });
+  select.onchange = () => showDirections(paths[select.value]);
+  select.value = 0;
+  showDirections(paths[0]);
+}
+
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
@@ -187,12 +224,10 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
-    const path = dijkstra(startNode, endNode);
-    if (!path.length) return alert("No path found.");
-    if (routeLine) map.removeLayer(routeLine);
-    routeLine = L.polyline(path.map(c => [c[1], c[0]]), { color: 'green' }).addTo(map);
-
-    showDirections(path);
+    const paths = findAlternativeRoutes(startNode, endNode, 3);
+    if (!paths.length) return alert("No path found.");
+    allPaths = paths;
+    renderRoutes(paths);
   }
 });
 </script>
