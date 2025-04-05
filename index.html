@@ -55,6 +55,9 @@ function showUserLocation(position) {
     }).addTo(map);
     map.setView([lat, lng], 15);
   }
+
+  // Log accuracy for debugging
+  console.log(`GPS Accuracy: ${position.coords.accuracy} meters`);
 }
 
 // Function to handle errors when retrieving location
@@ -107,7 +110,7 @@ function findClosestNode(latLng) {
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key]);
-    const dist = latLng.distanceTo(nodeLatLng);
+    const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
     if (dist < minDist) {
       minDist = dist;
       closestNode = key;
