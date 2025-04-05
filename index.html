@@ -3,162 +3,130 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trail Routing Map</title>
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <title>Interactive Trail Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
   <style>
-    #map {
-      height: 100vh;
-    }
+    #map { height: 100vh; width: 100vw; }
   </style>
 </head>
 <body>
-  <div id="map"></div>
+<div id="map"></div>
+<script>
+let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
-  <script>
-    let map = L.map("map").setView([45.6362, -74.0345], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(map);
+let trailData, graph = {}, nodeCoords = {}, nodeId = 0;
+let startMarker, endMarker, routeLine;
+let clickCount = 0, startNode = null, endNode = null;
 
-    let trailLayer;
-    let startMarker, endMarker;
-    let routeLine;
-    let trailGraph = {};
-    let allTrailCoords = [];
+function coordKey(coord) {
+  return `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`;
+}
 
-    function coordKey(c) {
-      return c.join(",");
-    }
+function addEdge(a, b, dist) {
+  if (!graph[a]) graph[a] = [];
+  graph[a].push({ node: b, dist });
+}
 
-    function haversineDistance(c1, c2) {
-      const R = 6371e3;
-      const toRad = (deg) => (deg * Math.PI) / 180;
-      const [lon1, lat1] = c1;
-      const [lon2, lat2] = c2;
-      const φ1 = toRad(lat1), φ2 = toRad(lat2);
-      const Δφ = toRad(lat2 - lat1);
-      const Δλ = toRad(lon2 - lon1);
-
-      const a = Math.sin(Δφ / 2) ** 2 +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    function buildTrailGraph(geojson) {
-      geojson.features.forEach((feature) => {
-        if (feature.geometry.type === "LineString") {
-          const coords = feature.geometry.coordinates;
-          coords.forEach((c) => allTrailCoords.push(c));
-
-          for (let i = 0; i < coords.length - 1; i++) {
-            const a = coords[i], b = coords[i + 1];
-            const keyA = coordKey(a), keyB = coordKey(b);
-            const dist = haversineDistance(a, b);
-
-            if (!trailGraph[keyA]) trailGraph[keyA] = {};
-            if (!trailGraph[keyB]) trailGraph[keyB] = {};
-
-            trailGraph[keyA][keyB] = dist;
-            trailGraph[keyB][keyA] = dist;
-          }
-        }
-      });
-      console.log("✅ Trail graph built:", trailGraph);
-    }
-
-    function findClosestTrailCoord(latlng) {
-      let minDist = Infinity;
-      let closest;
-      const clickCoord = [latlng.lng, latlng.lat];
-
-      allTrailCoords.forEach((coord) => {
-        const dist = haversineDistance(coord, clickCoord);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = coord;
-        }
-      });
-
-      return closest;
-    }
-
-    function dijkstra(graph, startKey, endKey) {
-      const dist = {}, prev = {}, queue = new Set(Object.keys(graph));
-
-      for (let node of queue) dist[node] = Infinity;
-      dist[startKey] = 0;
-
-      while (queue.size > 0) {
-        let u = [...queue].reduce((a, b) => (dist[a] < dist[b] ? a : b));
-        queue.delete(u);
-
-        if (u === endKey) break;
-
-        for (let neighbor in graph[u]) {
-          let alt = dist[u] + graph[u][neighbor];
-          if (alt < dist[neighbor]) {
-            dist[neighbor] = alt;
-            prev[neighbor] = u;
-          }
-        }
+function buildGraph(data) {
+  data.features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coordKey(coords[i]);
+        const b = coordKey(coords[i + 1]);
+        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+        addEdge(a, b, dist);
+        addEdge(b, a, dist);
+        nodeCoords[a] = coords[i];
+        nodeCoords[b] = coords[i + 1];
       }
+    }
+  });
+}
 
-      const path = [];
-      let u = endKey;
-      while (u) {
-        path.unshift(u.split(",").map(Number));
-        u = prev[u];
+function findClosestNode(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
+  let closest = null, minDist = Infinity;
+  Object.entries(nodeCoords).forEach(([key, coord]) => {
+    const d = turf.distance(pt, turf.point(coord));
+    if (d < minDist) {
+      minDist = d;
+      closest = key;
+    }
+  });
+  return closest;
+}
+
+function dijkstra(start, end) {
+  let dist = {}, prev = {}, visited = new Set();
+  Object.keys(graph).forEach(n => dist[n] = Infinity);
+  dist[start] = 0;
+
+  while (true) {
+    let u = null, min = Infinity;
+    for (let n in dist) {
+      if (!visited.has(n) && dist[n] < min) {
+        min = dist[n];
+        u = n;
       }
-      return path;
     }
-
-    function drawRoute(start, end) {
-      const startCoord = findClosestTrailCoord(start);
-      const endCoord = findClosestTrailCoord(end);
-
-      if (!startCoord || !endCoord) return alert("No close trail point found.");
-
-      const startKey = coordKey(startCoord);
-      const endKey = coordKey(endCoord);
-
-      const pathCoords = dijkstra(trailGraph, startKey, endKey);
-
-      if (routeLine) map.removeLayer(routeLine);
-      routeLine = L.polyline(pathCoords.map(c => [c[1], c[0]]), { color: 'green' }).addTo(map);
-      console.log("✅ Route drawn with", pathCoords.length, "points.");
-    }
-
-    fetch("map.geojson")
-      .then((res) => res.json())
-      .then((data) => {
-        trailLayer = L.geoJSON(data, { color: "blue" }).addTo(map);
-        buildTrailGraph(data);
-      });
-
-    let clickCount = 0;
-    let startLatLng, endLatLng;
-
-    map.on("click", function (e) {
-      if (clickCount === 0) {
-        if (startMarker) map.removeLayer(startMarker);
-        startLatLng = e.latlng;
-        startMarker = L.marker(e.latlng, { draggable: true }).addTo(map);
-        clickCount++;
-      } else {
-        if (endMarker) map.removeLayer(endMarker);
-        endLatLng = e.latlng;
-        endMarker = L.marker(e.latlng, { draggable: true }).addTo(map);
-        clickCount = 0;
-
-        drawRoute(startLatLng, endLatLng);
+    if (!u || u === end) break;
+    visited.add(u);
+    graph[u].forEach(({ node: v, dist: d }) => {
+      const alt = dist[u] + d;
+      if (alt < dist[v]) {
+        dist[v] = alt;
+        prev[v] = u;
       }
     });
-  </script>
+  }
+
+  let path = [], u = end;
+  while (prev[u]) {
+    path.unshift(nodeCoords[u]);
+    u = prev[u];
+  }
+  if (u === start) path.unshift(nodeCoords[u]);
+  return path;
+}
+
+fetch('map.geojson')
+  .then(res => res.json())
+  .then(data => {
+    trailData = data;
+    L.geoJSON(data, { color: 'blue' }).addTo(map);
+    buildGraph(data);
+    console.log("✅ Trails loaded and graph built.");
+  });
+
+map.on('click', function (e) {
+  const snapped = findClosestNode(e.latlng);
+  if (!snapped) return alert("No nearby trail found.");
+  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
+
+  if (clickCount === 0) {
+    if (startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker(snappedLatLng).addTo(map);
+    startNode = snapped;
+    clickCount++;
+  } else {
+    if (endMarker) map.removeLayer(endMarker);
+    endMarker = L.marker(snappedLatLng).addTo(map);
+    endNode = snapped;
+    clickCount = 0;
+
+    const path = dijkstra(startNode, endNode);
+    if (!path.length) return alert("No path found.");
+    if (routeLine) map.removeLayer(routeLine);
+    routeLine = L.polyline(path.map(c => [c[1], c[0]]), { color: 'green' }).addTo(map);
+  }
+});
+</script>
 </body>
 </html>
