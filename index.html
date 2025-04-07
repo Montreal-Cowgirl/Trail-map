@@ -241,8 +241,14 @@ function renderRoute(path) {
 
   // Add the new route line to the map
   routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  map.fitBounds(routeLine.getBounds()); // Optionally fit the map to the route
+  
+  // Fix: Use a predefined zoom level (e.g., 15) to keep the map from zooming in too much.
+  map.setView(routeCoords[0], 15);  // Reset view to the first point of the route and set zoom level.
+  
+  // Optionally, fit bounds based on route only if desired but without removing the rest of the map.
+  // map.fitBounds(routeLine.getBounds());
 }
+
 
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
