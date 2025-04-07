@@ -187,24 +187,51 @@ map.on('click', function (e) {
     console.log("End node:", endNode);
 
     try {
-      const routes = findAllPaths(startNode, endNode);
-      if (routes.length === 0) return alert("No paths found.");
-      routes.sort((a, b) => getPathDistance(a) - getPathDistance(b));
+      const path = dijkstra(startNode, endNode);
+      if (!path || path.length === 0) return alert("No path found.");
 
       routeLines.forEach(line => map.removeLayer(line));
       routeLines = [];
-
-      renderRoute(routes[0], true); // first route in green
-      for (let i = 1; i < routes.length; i++) {
-        renderRoute(routes[i], false); // others in gray
-      }
-      renderDirections(routes[0]);
+      renderRoute(path, true);
+      renderDirections(path);
     } catch (err) {
-      console.error("Error finding routes:", err);
+      console.error("Error finding route:", err);
       alert("There was an error finding the route. Check console for details.");
     }
   }
 });
+
+function dijkstra(start, end) {
+  const distances = {}, prev = {}, visited = new Set(), pq = [];
+  distances[start] = 0;
+  pq.push({ node: start, dist: 0 });
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.dist - b.dist);
+    const { node: u } = pq.shift();
+    if (visited.has(u)) continue;
+    visited.add(u);
+
+    if (u === end) break;
+
+    for (const neighbor of graph[u] || []) {
+      const alt = distances[u] + neighbor.dist;
+      if (alt < (distances[neighbor.node] || Infinity)) {
+        distances[neighbor.node] = alt;
+        prev[neighbor.node] = u;
+        pq.push({ node: neighbor.node, dist: alt });
+      }
+    }
+  }
+
+  const path = [];
+  let curr = end;
+  while (curr) {
+    path.unshift(curr);
+    curr = prev[curr];
+  }
+  return path[0] === start ? path : [];
+}
 
 function renderRoute(path, isPrimary = false) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
@@ -217,49 +244,46 @@ function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
   let totalDistance = 0;
-  path.forEach((node, idx) => {
-    if (idx < path.length - 1) {
-      const from = nodeCoords[node];
-      const to = nodeCoords[path[idx + 1]];
-      const dist = turf.distance(turf.point(from), turf.point(to));
-      totalDistance += dist;
+  let prevBearing = null;
 
-      const li = document.createElement('li');
-      li.textContent = `From (${from[1].toFixed(5)}, ${from[0].toFixed(5)}) to (${to[1].toFixed(5)}, ${to[0].toFixed(5)})`;
-      directionsList.appendChild(li);
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = turf.point(nodeCoords[path[i]]);
+    const to = turf.point(nodeCoords[path[i + 1]]);
+    const dist = turf.distance(from, to);
+    totalDistance += dist;
+
+    const bearing = turf.bearing(from, to);
+    let instruction = '';
+
+    if (prevBearing !== null) {
+      let angle = bearing - prevBearing;
+      if (angle > 180) angle -= 360;
+      if (angle < -180) angle += 360;
+
+      const absAngle = Math.abs(angle);
+      if (absAngle > 30) {
+        if (angle > 0) {
+          instruction = `Turn right`;
+        } else {
+          instruction = `Turn left`;
+        }
+      } else {
+        instruction = `Continue straight`;
+      }
+    } else {
+      instruction = `Start on trail heading ${bearing.toFixed(0)}°`;
     }
-  });
+
+    prevBearing = bearing;
+
+    const coord = nodeCoords[path[i + 1]];
+    const li = document.createElement('li');
+    li.textContent = `${instruction} toward (${coord[1].toFixed(5)}, ${coord[0].toFixed(5)})`;
+    directionsList.appendChild(li);
+  }
+
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12);
-}
-
-function getPathDistance(path) {
-  let dist = 0;
-  for (let i = 0; i < path.length - 1; i++) {
-    dist += turf.distance(turf.point(nodeCoords[path[i]]), turf.point(nodeCoords[path[i + 1]]));
-  }
-  return dist;
-}
-
-function findAllPaths(start, end) {
-  const paths = [], visited = new Set();
-  function dfs(current, path) {
-    if (current === end) {
-      paths.push([...path]);
-      return;
-    }
-    visited.add(current);
-    for (const neighbor of graph[current] || []) {
-      if (!visited.has(neighbor.node)) {
-        path.push(neighbor.node);
-        dfs(neighbor.node, path);
-        path.pop();
-      }
-    }
-    visited.delete(current);
-  }
-  dfs(start, [start]);
-  return paths;
 }
 </script>
 
