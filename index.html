@@ -17,8 +17,6 @@
 
 <div id="map"></div>
 <div id="info">
-  <label for="routeSelect"><strong>Select Route Option:</strong></label>
-  <select id="routeSelect"></select><br /><br />
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
@@ -36,6 +34,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
 let userMarker;
+let routeLayer = null; // Store drawn route
 
 // Function to display the user's location
 function showUserLocation(position) {
@@ -194,13 +193,15 @@ function findShortestPath(start, end) {
 
 // Render the route as a polyline on the map
 function renderRoute(path) {
-  const routeCoords = path.map(node => nodeCoords[node]);
-  const routePolyline = L.polyline(routeCoords, { color: 'green' }).addTo(map);
-  
-  // Update the route options dropdown
-  const option = document.createElement('option');
-  option.text = `Route ${document.querySelectorAll('#routeSelect option').length + 1}`;
-  document.getElementById('routeSelect').appendChild(option);
+  if (routeLayer) {
+    map.removeLayer(routeLayer);
+  }
+
+  const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
+  routeLayer = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+
+  // Zoom to fit the route
+  map.fitBounds(routeLayer.getBounds());
 }
 
 // Render directions for the route
