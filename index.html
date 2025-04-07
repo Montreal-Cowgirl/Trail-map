@@ -145,7 +145,7 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
-fetch('trails.geojson')
+fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
     trailData = data;
