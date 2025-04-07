@@ -128,6 +128,45 @@ function connectNearbySegments(data, threshold = 25) {
   console.log("✅ Nearby trail segments connected.");
 }
 
+  // Highlight both ends of any trail segment that’s more than 25 meters away from its nearest neighboring segment
+  function highlightDisconnectedSegments(data, threshold = 25) {
+  const endpoints = [];
+
+  data.features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      endpoints.push(coords[0], coords[coords.length - 1]);
+    }
+  });
+
+  endpoints.forEach((point, idx) => {
+    const pt = turf.point(point);
+    let isIsolated = true;
+
+    for (let other of endpoints) {
+      if (point === other) continue;
+      const dist = turf.distance(pt, turf.point(other), { units: 'meters' });
+      if (dist > 0 && dist <= threshold) {
+        isIsolated = false;
+        break;
+      }
+    }
+
+    if (isIsolated) {
+      const latlng = [point[1], point[0]];
+      L.circle(latlng, {
+        radius: 5,
+        color: 'red',
+        fillColor: 'red',
+        fillOpacity: 0.8
+      }).addTo(map);
+    }
+  });
+
+  console.log("🔴 Disconnected endpoints highlighted.");
+}
+ 
+
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
