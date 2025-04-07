@@ -66,7 +66,7 @@ if (navigator.geolocation) {
 
 // Build the graph and handle trail data
 function coordKey(coord) {
-  return `${coord[1].toFixed(6)},${coord[0].toFixed(6)}`; // Increase precision to 6 decimal places
+  return `${coord[1].toFixed(6)},${coord[0].toFixed(6)}`; // Keep high precision
 }
 
 function addEdge(a, b, dist) {
@@ -96,7 +96,7 @@ function buildGraph(data) {
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 25; // 25 meters snapping threshold
+  const minSnappingThreshold = 100; // 100 meters snapping threshold
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
