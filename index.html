@@ -32,33 +32,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-let userMarker, routeLine;
-
-function showUserLocation(position) {
-  const lat = position.coords.latitude;
-  const lng = position.coords.longitude;
-
-  if (userMarker) {
-    userMarker.setLatLng([lat, lng]);
-  } else {
-    userMarker = L.marker([lat, lng]).addTo(map);
-    map.setView([lat, lng], 15);
-  }
-}
-
-function showError(error) {
-  console.warn(`ERROR(${error.code}): ${error.message}`);
-}
-
-if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(showUserLocation, showError, {
-    enableHighAccuracy: true,
-    maximumAge: 10000,
-    timeout: 5000
-  });
-} else {
-  alert("Geolocation is not supported by your browser.");
-}
+let userMarker;
+let routeLines = [];
 
 function coordKey(coord) {
   return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
@@ -86,10 +61,8 @@ function buildGraph(data) {
   });
 }
 
-// Enhanced connection logic: connect any segments < 25m apart
 function connectNearbySegments(data, threshold = 25) {
   const lineSegments = [];
-
   data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
       const coords = f.geometry.coordinates;
@@ -98,41 +71,31 @@ function connectNearbySegments(data, threshold = 25) {
       }
     }
   });
-
   for (let i = 0; i < lineSegments.length; i++) {
     for (let j = i + 1; j < lineSegments.length; j++) {
       const line1 = turf.lineString(lineSegments[i]);
       const line2 = turf.lineString(lineSegments[j]);
-
       const options = { units: 'meters' };
       const dist = turf.pointToLineDistance(turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]), line2, options);
-
       if (dist <= threshold) {
         const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]));
         const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(line2.geometry.coordinates[0], line2.geometry.coordinates[1]));
-
         const a = coordKey(pt1.geometry.coordinates);
         const b = coordKey(pt2.geometry.coordinates);
-
         const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
-
         nodeCoords[a] = pt1.geometry.coordinates;
         nodeCoords[b] = pt2.geometry.coordinates;
-
         addEdge(a, b, distBetween);
         addEdge(b, a, distBetween);
       }
     }
   }
-
-  console.log("✅ Nearby trail segments connected.");
 }
 
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
   const threshold = 100;
-
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
     const dist = latLng.distanceTo(nodeLatLng);
@@ -141,8 +104,46 @@ function findClosestNode(latLng) {
       closestNode = key;
     }
   });
-
   return closestNode;
+}
+
+function findAllPaths(start, end) {
+  const allPaths = [];
+  function dfs(current, path, visited, distance) {
+    if (current === end) {
+      allPaths.push({ path: [...path, current], distance });
+      return;
+    }
+    visited.add(current);
+    if (graph[current]) {
+      for (const neighbor of graph[current]) {
+        if (!visited.has(neighbor.node)) {
+          dfs(neighbor.node, [...path, current], new Set(visited), distance + neighbor.dist);
+        }
+      }
+    }
+  }
+  dfs(start, [], new Set(), 0);
+  return allPaths.sort((a, b) => a.distance - b.distance);
+}
+
+function renderRoutes(paths) {
+  routeLines.forEach(line => map.removeLayer(line));
+  routeLines = [];
+  const directionsList = document.getElementById('directions');
+  directionsList.innerHTML = '';
+  let totalDistance = 0;
+  paths.forEach((route, i) => {
+    const coords = route.path.map(n => [nodeCoords[n][1], nodeCoords[n][0]]);
+    const line = L.polyline(coords, { color: i === 0 ? 'green' : 'gray', weight: 5, opacity: 0.7 }).addTo(map);
+    routeLines.push(line);
+    const li = document.createElement('li');
+    li.textContent = `Route ${i + 1}: ${route.distance.toFixed(2)} km`;
+    directionsList.appendChild(li);
+    if (i === 0) totalDistance = route.distance;
+  });
+  document.getElementById('distance').textContent = totalDistance.toFixed(2);
+  document.getElementById('time').textContent = Math.round(totalDistance * 12);
 }
 
 fetch('map.geojson')
@@ -151,151 +152,39 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-    connectNearbySegments(data, 25); // Use 25m threshold
-    console.log("✅ Trails loaded, graph built, nearby paths connected.");
+    connectNearbySegments(data);
   });
+
+const greenIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+});
+const redIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+});
 
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
   if (!snapped) return alert("No nearby trail found.");
   const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
-
-// Create the start and end markers with standard pin icons in green and red
-
-const greenIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-const redIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-// Inside map.on('click', ...) where you set startMarker and endMarker:
-if (clickCount === 0) {
-  if (startMarker) map.removeLayer(startMarker);
-  startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
-  startNode = snapped;
-  clickCount++;
-} else {
-  if (endMarker) map.removeLayer(endMarker);
-  endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
-  endNode = snapped;
-  clickCount = 0;
-
-  const route = findShortestPath(startNode, endNode);
-  if (!route) return alert("No path found.");
-  renderRoute(route);
-  renderDirections(route);
-}
-
-});
-
-function renderRoute(path) {
-  // Log the path to ensure it is correct
-  console.log('Path to render:', path);
-
-  const routeCoords = path.map(node => {
-    const coord = nodeCoords[node];
-    return [coord[1], coord[0]]; // Leaflet expects [lat, lng]
-  });
-
-  // Log the route coordinates to ensure they're valid
-  console.log('Route coordinates:', routeCoords);
-
-  if (routeCoords.length > 0) {
-    // Remove existing route if present
-    if (routeLine) {
-      map.removeLayer(routeLine);
-    }
-    
-    // Add the new polyline route
-    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  if (clickCount === 0) {
+    if (startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
+    startNode = snapped;
+    clickCount++;
   } else {
-    console.error('No valid route coordinates found.');
+    if (endMarker) map.removeLayer(endMarker);
+    endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
+    endNode = snapped;
+    clickCount = 0;
+    const paths = findAllPaths(startNode, endNode);
+    if (paths.length === 0) return alert("No route found.");
+    renderRoutes(paths);
   }
-}
-
-
-function findShortestPath(start, end) {
-  const distances = {};
-  const previous = {};
-  const nodes = new Set(Object.keys(graph));
-  let path = [];
-
-  nodes.forEach(node => distances[node] = Infinity);
-  distances[start] = 0;
-
-  while (nodes.size > 0) {
-    let minNode = null;
-    nodes.forEach(node => {
-      if (minNode === null || distances[node] < distances[minNode]) {
-        minNode = node;
-      }
-    });
-
-    if (minNode === end) {
-      while (previous[minNode]) {
-        path.push(minNode);
-        minNode = previous[minNode];
-      }
-      path.push(start);
-      break;
-    }
-
-    nodes.delete(minNode);
-
-    graph[minNode].forEach(neighbor => {
-      const alt = distances[minNode] + neighbor.dist;
-      if (alt < distances[neighbor.node]) {
-        distances[neighbor.node] = alt;
-        previous[neighbor.node] = minNode;
-      }
-    });
-  }
-
-  // Log the path to ensure it's correct
-  console.log('Shortest path found:', path);
-
-  return path.reverse();
-}
-
-
-
-function renderDirections(path) {
-  const directionsList = document.getElementById('directions');
-  directionsList.innerHTML = '';
-  let totalDistance = 0;
-
-  path.forEach((node, idx) => {
-    if (idx < path.length - 1) {
-      const from = nodeCoords[node];
-      const to = nodeCoords[path[idx + 1]];
-      const dist = turf.distance(turf.point(from), turf.point(to));
-      totalDistance += dist;
-
-      const fromLatLng = L.latLng(from[1], from[0]);
-      const toLatLng = L.latLng(to[1], to[0]);
-
-      const li = document.createElement('li');
-      li.textContent = `From (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
-      directionsList.appendChild(li);
-    }
-  });
-
-  document.getElementById('distance').textContent = totalDistance.toFixed(2);
-  document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
-}
+});
 </script>
-
 </body>
 </html>
