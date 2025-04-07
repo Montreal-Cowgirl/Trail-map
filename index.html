@@ -220,9 +220,15 @@ function findShortestPath(start, end) {
 
 function renderRoute(path) {
   const routeCoords = path.map(node => nodeCoords[node]);
-  if (routeLine) map.removeLayer(routeLine);
-  routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  if (routeCoords.length > 0) {
+    if (routeLine) {
+      map.removeLayer(routeLine);  // Remove the existing route if present
+    }
+    // Create a new polyline for the route
+    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  }
 }
+
 
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
