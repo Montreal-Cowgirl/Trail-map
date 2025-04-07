@@ -24,7 +24,6 @@
 </div>
 
 <script>
-// Initialize map
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -35,7 +34,6 @@ let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
 let userMarker;
 
-// Function to display the user's location
 function showUserLocation(position) {
   const lat = position.coords.latitude;
   const lng = position.coords.longitude;
@@ -48,12 +46,10 @@ function showUserLocation(position) {
   }
 }
 
-// Function to handle errors when retrieving location
 function showError(error) {
   console.warn(`ERROR(${error.code}): ${error.message}`);
 }
 
-// Watch the user's position in real time
 if (navigator.geolocation) {
   navigator.geolocation.watchPosition(showUserLocation, showError, { 
     enableHighAccuracy: true, 
@@ -64,9 +60,8 @@ if (navigator.geolocation) {
   alert("Geolocation is not supported by your browser.");
 }
 
-// Build the graph and handle trail data
 function coordKey(coord) {
-  return `${coord[1].toFixed(6)},${coord[0].toFixed(6)}`; // Keep high precision
+  return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
 }
 
 function addEdge(a, b, dist) {
@@ -81,7 +76,7 @@ function buildGraph(data) {
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coordKey(coords[i]);
         const b = coordKey(coords[i + 1]);
-        const dist = turf.distance(turf.point([coords[i][1], coords[i][0]]), turf.point([coords[i + 1][1], coords[i + 1][0]]));
+        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]), { units: 'kilometers' });
         addEdge(a, b, dist);
         addEdge(b, a, dist);
         nodeCoords[a] = coords[i];
@@ -92,16 +87,14 @@ function buildGraph(data) {
   console.log("✅ Graph built:", nodeCoords);
 }
 
-// Function to find the closest node based on click position with a threshold
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const minSnappingThreshold = 100; // 100 meters snapping threshold
+  const minSnappingThreshold = 100; // meters
 
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
-    const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
-
+    const dist = latLng.distanceTo(nodeLatLng);
     if (dist < minDist && dist <= minSnappingThreshold) {
       minDist = dist;
       closestNode = key;
@@ -111,14 +104,53 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
-// Load GeoJSON and build graph
+// === NEW FUNCTION: CONNECT CLOSE ENDPOINTS ===
+function connectCloseEndpoints(data, thresholdMeters = 25) {
+  const endpoints = [];
+
+  data.features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      endpoints.push(coords[0]);
+      endpoints.push(coords[coords.length - 1]);
+    }
+  });
+
+  const snappedPairs = new Set();
+
+  for (let i = 0; i < endpoints.length; i++) {
+    for (let j = i + 1; j < endpoints.length; j++) {
+      const dist = turf.distance(turf.point(endpoints[i]), turf.point(endpoints[j]), { units: 'meters' });
+      if (dist > 0 && dist < thresholdMeters) {
+        const key = `${endpoints[i]}-${endpoints[j]}`;
+        if (!snappedPairs.has(key)) {
+          const newFeature = {
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [endpoints[i], endpoints[j]]
+            },
+            properties: { connector: true }
+          };
+          data.features.push(newFeature);
+          snappedPairs.add(key);
+        }
+      }
+    }
+  }
+
+  return data;
+}
+
+// === LOAD & PREPROCESS GEOJSON ===
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
-    trailData = data;
-    L.geoJSON(data, { color: 'blue' }).addTo(map);
-    buildGraph(data);
-    console.log("✅ Trails loaded and graph built.");
+    const connectedData = connectCloseEndpoints(data, 25);
+    trailData = connectedData;
+    L.geoJSON(trailData, { color: 'blue' }).addTo(map);
+    buildGraph(trailData);
+    console.log("✅ Trails loaded and graph built with connected endpoints.");
   });
 
 map.on('click', function (e) {
@@ -137,26 +169,20 @@ map.on('click', function (e) {
     endNode = snapped;
     clickCount = 0;
 
-    // Run pathfinding to generate a route
     const route = findShortestPath(startNode, endNode);
     if (!route) return alert("No path found.");
-
     renderRoute(route);
     renderDirections(route);
   }
 });
 
-// Dijkstra's Algorithm to find the shortest path
 function findShortestPath(start, end) {
   const distances = {};
   const previous = {};
   const nodes = new Set(Object.keys(graph));
   let path = [];
 
-  // Initialize distances
-  nodes.forEach(node => {
-    distances[node] = Infinity;
-  });
+  nodes.forEach(node => distances[node] = Infinity);
   distances[start] = 0;
 
   while (nodes.size > 0) {
@@ -190,30 +216,34 @@ function findShortestPath(start, end) {
   return path.reverse();
 }
 
-// Render the route as a polyline on the map
 function renderRoute(path) {
   const routeCoords = path.map(node => nodeCoords[node]);
   const routePolyline = L.polyline(routeCoords, { color: 'green' }).addTo(map);
 }
 
-// Render directions for the route
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
-  directionsList.innerHTML = ''; // Clear previous directions
+  directionsList.innerHTML = '';
   
+  let totalDistance = 0;
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
       const nextNode = path[idx + 1];
-      const fromCoord = nodeCoords[node];
-      const toCoord = nodeCoords[nextNode];
-      const fromLatLng = L.latLng(fromCoord[1], fromCoord[0]);
-      const toLatLng = L.latLng(toCoord[1], toCoord[0]);
-      const directionText = `Go from (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
+      const from = nodeCoords[node];
+      const to = nodeCoords[nextNode];
+      const dist = turf.distance(turf.point(from), turf.point(to), { units: 'kilometers' });
+      totalDistance += dist;
+
+      const fromLatLng = L.latLng(from[1], from[0]);
+      const toLatLng = L.latLng(to[1], to[0]);
       const li = document.createElement('li');
-      li.textContent = directionText;
+      li.textContent = `Go from (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
       directionsList.appendChild(li);
     }
   });
+
+  document.getElementById('distance').textContent = totalDistance.toFixed(2);
+  document.getElementById('time').textContent = Math.round(totalDistance / 5 * 60); // assuming 5 km/h
 }
 </script>
 
