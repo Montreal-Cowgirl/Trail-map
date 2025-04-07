@@ -275,6 +275,7 @@ function renderDirections(path) {
   directionsList.innerHTML = '';
   let totalDistance = 0;
   let prevBearing = null;
+  let prevPoint = null; // This will keep track of the previous point for accurate distance calculation
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -283,15 +284,14 @@ function renderDirections(path) {
       const dist = turf.distance(turf.point(from), turf.point(to));
       totalDistance += dist;
 
-      const fromLatLng = L.latLng(from[1], from[0]);
-      const toLatLng = L.latLng(to[1], to[0]);
-
       // Calculate the bearing between current and next point
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
 
-      // Check if there's a significant change in direction (> 30 degrees)
+      // If we have a previous point, calculate the angle change
       if (prevBearing !== null) {
         const angleChange = Math.abs(bearingFrom - prevBearing);
+        
+        // Only consider significant turns (greater than 30 degrees)
         if (angleChange > 30) {
           let direction = '';
           if (angleChange > 180) {
@@ -303,7 +303,7 @@ function renderDirections(path) {
           }
 
           // Calculate the distance to the next turn (next point in the path)
-          let nextPointCoords = nodeCoords[path[idx + 2]] || nodeCoords[path[idx + 1]];
+          const nextPointCoords = nodeCoords[path[idx + 2]] || nodeCoords[path[idx + 1]];
           const distanceToNextTurn = turf.distance(turf.point(to), turf.point(nextPointCoords));
 
           // Add the direction change with distance information
@@ -313,7 +313,9 @@ function renderDirections(path) {
         }
       }
 
-      prevBearing = bearingFrom; // Update previous bearing for next iteration
+      // Update previous point and bearing for next iteration
+      prevBearing = bearingFrom;
+      prevPoint = to; // Update the previous point
     }
   });
 
