@@ -112,16 +112,17 @@ function buildGraph(data) {
   console.log("✅ Graph built:", Object.keys(graph).length, "nodes");
 }
 
+// Function to find the closest node based on click position with a threshold
 function findClosestNode(latLng) {
   let minDist = Infinity;
   let closestNode = null;
-  const threshold = 100;
+  const minSnappingThreshold = 25; // Updated to 25 meters as requested
 
   Object.keys(nodeCoords).forEach(key => {
-    const coord = nodeCoords[key];
-    const nodeLatLng = L.latLng(coord[1], coord[0]);
-    const dist = latLng.distanceTo(nodeLatLng);
-    if (dist < minDist && dist <= threshold) {
+    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
+    const dist = latLng.distanceTo(nodeLatLng); // Using Leaflet's distanceTo method
+
+    if (dist < minDist && dist <= minSnappingThreshold) {
       minDist = dist;
       closestNode = key;
     }
