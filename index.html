@@ -47,7 +47,7 @@ function showUserLocation(position) {
 }
 
 function showError(error) {
-  console.warn(ERROR(${error.code}): ${error.message});
+  console.warn(`ERROR(${error.code}): ${error.message}`);
 }
 
 if (navigator.geolocation) {
@@ -61,7 +61,7 @@ if (navigator.geolocation) {
 }
 
 function coordKey(coord) {
-  return ${coord[1].toFixed(5)},${coord[0].toFixed(5)};
+  return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
 }
 
 function addEdge(a, b, dist) {
@@ -145,7 +145,7 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
-fetch('map.geojson')
+fetch('trails.geojson')
   .then(res => res.json())
   .then(data => {
     trailData = data;
@@ -287,7 +287,7 @@ function renderDirections(path) {
       const toLatLng = L.latLng(to[1], to[0]);
 
       const li = document.createElement('li');
-      li.textContent = From (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)});
+      li.textContent = `From (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
       directionsList.appendChild(li);
     }
   });
