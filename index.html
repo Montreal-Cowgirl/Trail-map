@@ -162,12 +162,12 @@ map.on('click', function (e) {
 
   if (clickCount === 0) {
     if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(snappedLatLng, { icon: L.icon({ iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-green.png' }) }).addTo(map);  // Green start marker
+    startMarker = L.marker(snappedLatLng, { icon: L.divIcon({ className: 'leaflet-div-icon', html: '<div style="background-color: green; border-radius: 50%; width: 25px; height: 25px;"></div>' }) }).addTo(map);  // Green start marker
     startNode = snapped;
     clickCount++;
   } else {
     if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(snappedLatLng, { icon: L.icon({ iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-red.png' }) }).addTo(map);  // Red end marker
+    endMarker = L.marker(snappedLatLng, { icon: L.divIcon({ className: 'leaflet-div-icon', html: '<div style="background-color: red; border-radius: 50%; width: 25px; height: 25px;"></div>' }) }).addTo(map);  // Red end marker
     endNode = snapped;
     clickCount = 0;
 
