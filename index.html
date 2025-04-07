@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -162,18 +163,18 @@ map.on('click', function (e) {
 
   if (clickCount === 0) {
     if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(snappedLatLng, { icon: L.divIcon({ className: 'leaflet-div-icon', html: '<div style="background-color: green; border-radius: 50%; width: 25px; height: 25px;"></div>' }) }).addTo(map);  // Green start marker
+    startMarker = L.marker(snappedLatLng).addTo(map);
     startNode = snapped;
     clickCount++;
   } else {
     if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(snappedLatLng, { icon: L.divIcon({ className: 'leaflet-div-icon', html: '<div style="background-color: red; border-radius: 50%; width: 25px; height: 25px;"></div>' }) }).addTo(map);  // Red end marker
+    endMarker = L.marker(snappedLatLng).addTo(map);
     endNode = snapped;
     clickCount = 0;
 
     const route = findShortestPath(startNode, endNode);
     if (!route) return alert("No path found.");
-    renderRoute(route);  // Ensure route is rendered
+    renderRoute(route);
     renderDirections(route);
   }
 });
@@ -221,12 +222,10 @@ function findShortestPath(start, end) {
 function renderRoute(path) {
   if (routeLine) map.removeLayer(routeLine);  // Ensure previous route is removed
   const routeCoords = path.map(node => nodeCoords[node]);
-  
-  // Check if routeCoords has valid coordinates
+
+  // Ensure routeCoords has valid coordinates
   if (routeCoords.length > 0) {
-    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  } else {
-    console.error("No valid route coordinates to render.");
+    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);  // Drawing the route with a green color
   }
 }
 
