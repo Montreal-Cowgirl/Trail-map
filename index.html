@@ -182,8 +182,11 @@ function renderRoute(path) {
   // Log the path to ensure it is correct
   console.log('Path to render:', path);
 
-  const routeCoords = path.map(node => nodeCoords[node]);
-  
+  const routeCoords = path.map(node => {
+    const coord = nodeCoords[node];
+    return [coord[1], coord[0]]; // Leaflet expects [lat, lng]
+  });
+
   // Log the route coordinates to ensure they're valid
   console.log('Route coordinates:', routeCoords);
 
@@ -199,6 +202,7 @@ function renderRoute(path) {
     console.error('No valid route coordinates found.');
   }
 }
+
 
 function findShortestPath(start, end) {
   const distances = {};
