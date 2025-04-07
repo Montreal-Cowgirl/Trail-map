@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -219,36 +218,11 @@ function findShortestPath(start, end) {
   return path.reverse();
 }
 
-// Render the route as a polyline on the map
 function renderRoute(path) {
-  if (path.length === 0) {
-    console.error("Route path is empty. No route to render.");
-    return;
-  }
-
   const routeCoords = path.map(node => nodeCoords[node]);
-
-  console.log("Route coordinates: ", routeCoords); // Log coordinates for debugging
-
-  // Check if the coordinates are valid before attempting to render
-  if (routeCoords.some(coord => coord === undefined)) {
-    console.error("One or more coordinates are undefined.");
-    return;
-  }
-
-  // Remove any previous route line
   if (routeLine) map.removeLayer(routeLine);
-
-  // Add the new route line to the map
   routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  
-  // Fix: Use a predefined zoom level (e.g., 15) to keep the map from zooming in too much.
-  map.setView(routeCoords[0], 15);  // Reset view to the first point of the route and set zoom level.
-  
-  // Optionally, fit bounds based on route only if desired but without removing the rest of the map.
-  // map.fitBounds(routeLine.getBounds());
 }
-
 
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
