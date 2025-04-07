@@ -6,154 +6,205 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    #map { height: 100vh; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script>
-    const map = L.map('map').setView([45.6, -73.935], 13);
+    const map = L.map('map').setView([45.6, -73.93], 13);
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    let trailSegments = []; // GeoJSON LineString features
+    const trailColor = '#0077cc';
+    const connectedColor = '#007744';
+
     let trailGraph = {};
+    let allCoords = [];
     let trailLayer;
-    let startMarker, endMarker;
-    let routeLine;
-    const disconnectionThreshold = 25; // meters
 
-    function haversine(lat1, lon1, lat2, lon2) {
-      function toRad(x) { return x * Math.PI / 180; }
-      const R = 6371e3;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-    }
+    const startIcon = new L.Icon({
+      iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
 
-    function addToGraph(coord1, coord2, dist) {
-      const key1 = coord1.join(',');
-      const key2 = coord2.join(',');
-      if (!trailGraph[key1]) trailGraph[key1] = [];
-      if (!trailGraph[key2]) trailGraph[key2] = [];
-      trailGraph[key1].push({ node: key2, dist });
-      trailGraph[key2].push({ node: key1, dist });
-    }
+    const endIcon = new L.Icon({
+      iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
 
-    function buildGraphFromTrails() {
-      trailSegments.forEach(segment => {
-        const coords = segment.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    let startMarker = null;
+    let endMarker = null;
+    let routeLine = null;
+
+    async function loadTrails() {
+      const res = await fetch('trails.geojson');
+      const data = await res.json();
+
+      trailLayer = L.geoJSON(data, {
+        style: { color: trailColor }
+      }).addTo(map);
+
+      const segments = [];
+
+      data.features.forEach(feature => {
+        const coords = feature.geometry.coordinates;
+        coords.forEach(c => allCoords.push([c[1], c[0]]));
         for (let i = 0; i < coords.length - 1; i++) {
-          const dist = haversine(...coords[i], ...coords[i+1]);
-          addToGraph(coords[i], coords[i+1], dist);
+          const a = coords[i];
+          const b = coords[i + 1];
+          const keyA = `${a[1]},${a[0]}`;
+          const keyB = `${b[1]},${b[0]}`;
+
+          if (!trailGraph[keyA]) trailGraph[keyA] = [];
+          if (!trailGraph[keyB]) trailGraph[keyB] = [];
+
+          const dist = turf.distance(turf.point(a), turf.point(b));
+          trailGraph[keyA].push({ key: keyB, weight: dist });
+          trailGraph[keyB].push({ key: keyA, weight: dist });
+
+          segments.push([a, b]);
         }
       });
+
+      connectNearbySegments(segments);
+      console.log('✅ Trails loaded, graph built, nearby paths connected.');
     }
 
-    function connectNearbySegments(threshold = 25) {
-      const allPoints = trailSegments.flatMap(segment => segment.geometry.coordinates.map(([lng, lat]) => [lat, lng]));
-      for (let i = 0; i < allPoints.length; i++) {
-        for (let j = i + 1; j < allPoints.length; j++) {
-          const dist = haversine(...allPoints[i], ...allPoints[j]);
-          if (dist > 0 && dist <= threshold) {
-            addToGraph(allPoints[i], allPoints[j], dist);
+    function connectNearbySegments(segments) {
+      const threshold = 0.025; // ~25 meters
+      const allPoints = [];
+
+      segments.forEach(([a, b]) => {
+        allPoints.push(a, b);
+      });
+
+      const pointIndex = allPoints.map(([lng, lat]) => turf.point([lng, lat]));
+      const fc = turf.featureCollection(pointIndex);
+
+      allPoints.forEach(([lng1, lat1]) => {
+        const pt = turf.point([lng1, lat1]);
+        const nearby = turf.nearestPoint(pt, fc);
+
+        if (nearby) {
+          const [lng2, lat2] = nearby.geometry.coordinates;
+          const key1 = `${lat1},${lng1}`;
+          const key2 = `${lat2},${lng2}`;
+
+          if (key1 !== key2) {
+            const dist = turf.distance(pt, nearby);
+            if (dist <= threshold) {
+              if (!trailGraph[key1]) trailGraph[key1] = [];
+              if (!trailGraph[key2]) trailGraph[key2] = [];
+              trailGraph[key1].push({ key: key2, weight: dist });
+              trailGraph[key2].push({ key: key1, weight: dist });
+            }
           }
         }
-      }
+      });
+
       console.log('✅ Nearby trail segments connected.');
     }
 
-    function highlightDisconnectedEnds(threshold = 25) {
-      trailSegments.forEach(segment => {
-        const coords = segment.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-        [coords[0], coords[coords.length - 1]].forEach(end => {
-          const neighbors = Object.keys(trailGraph).filter(key => haversine(...end, ...key.split(',').map(Number)) <= threshold && key !== end.join(','));
-          if (neighbors.length === 0) {
-            L.circle(end, { radius: 5, color: 'red', fillColor: 'red', fillOpacity: 1 }).addTo(map);
-          }
-        });
-      });
+    function latLngStrToArr(str) {
+      const [lat, lng] = str.split(',').map(parseFloat);
+      return [lat, lng];
     }
 
-    function dijkstra(startCoord, endCoord) {
-      const startKey = startCoord.join(',');
-      const endKey = endCoord.join(',');
-      const dist = {}, prev = {}, queue = new Set(Object.keys(trailGraph));
-      Object.keys(trailGraph).forEach(node => dist[node] = Infinity);
-      dist[startKey] = 0;
+    function findNearestPoint(latlng) {
+      let nearest = null;
+      let minDist = Infinity;
+      const pt = turf.point([latlng.lng, latlng.lat]);
 
-      while (queue.size) {
-        const u = [...queue].reduce((a, b) => dist[a] < dist[b] ? a : b);
-        queue.delete(u);
-        if (u === endKey) break;
+      for (const key in trailGraph) {
+        const [lat, lng] = key.split(',').map(parseFloat);
+        const dist = turf.distance(pt, turf.point([lng, lat]));
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = key;
+        }
+      }
 
-        trailGraph[u].forEach(({ node: v, dist: w }) => {
-          if (!queue.has(v)) return;
-          const alt = dist[u] + w;
-          if (alt < dist[v]) {
-            dist[v] = alt;
-            prev[v] = u;
+      return nearest;
+    }
+
+    function dijkstra(startKey, endKey) {
+      const distances = {};
+      const prev = {};
+      const queue = new Set(Object.keys(trailGraph));
+
+      Object.keys(trailGraph).forEach(k => distances[k] = Infinity);
+      distances[startKey] = 0;
+
+      while (queue.size > 0) {
+        let minNode = null;
+        let minDist = Infinity;
+
+        queue.forEach(node => {
+          if (distances[node] < minDist) {
+            minDist = distances[node];
+            minNode = node;
+          }
+        });
+
+        if (!minNode || minNode === endKey) break;
+
+        queue.delete(minNode);
+
+        trailGraph[minNode].forEach(neighbor => {
+          const alt = distances[minNode] + neighbor.weight;
+          if (alt < distances[neighbor.key]) {
+            distances[neighbor.key] = alt;
+            prev[neighbor.key] = minNode;
           }
         });
       }
 
       const path = [];
-      for (let u = endKey; u; u = prev[u]) path.unshift(u);
-      return path.length ? path : null;
+      let curr = endKey;
+      while (curr) {
+        path.unshift(curr);
+        curr = prev[curr];
+      }
+
+      return path;
     }
 
     function renderRoute(path) {
       if (routeLine) map.removeLayer(routeLine);
-      const coords = path.map(p => p.split(',').map(Number));
-      routeLine = L.polyline(coords, { color: 'green' }).addTo(map);
-      console.log('✅ Route drawn');
+      const latlngs = path.map(latLngStrToArr);
+      routeLine = L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(map);
     }
 
-    function onMapClick(e) {
+    map.on('click', e => {
+      const nearest = findNearestPoint(e.latlng);
+      if (!nearest) return;
+
       if (!startMarker) {
-        startMarker = L.marker(e.latlng, {
-          icon: L.icon({
-            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-            iconSize: [32, 32],
-            iconAnchor: [16, 32],
-          })
-        }).addTo(map);
+        startMarker = L.marker(latLngStrToArr(nearest), { icon: startIcon }).addTo(map);
       } else if (!endMarker) {
-        endMarker = L.marker(e.latlng, {
-          icon: L.icon({
-            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-            iconSize: [32, 32],
-            iconAnchor: [16, 32],
-          })
-        }).addTo(map);
-
-        const path = dijkstra([startMarker.getLatLng().lat, startMarker.getLatLng().lng], [endMarker.getLatLng().lat, endMarker.getLatLng().lng]);
-        if (path) renderRoute(path);
+        endMarker = L.marker(latLngStrToArr(nearest), { icon: endIcon }).addTo(map);
+        const path = dijkstra(startMarker.getLatLng().toString(), nearest);
+        renderRoute(path);
+      } else {
+        map.removeLayer(startMarker);
+        map.removeLayer(endMarker);
+        if (routeLine) map.removeLayer(routeLine);
+        startMarker = L.marker(latLngStrToArr(nearest), { icon: startIcon }).addTo(map);
+        endMarker = null;
       }
-    }
+    });
 
-    async function loadTrails() {
-      const res = await fetch('trails.geojson');
-      const data = await res.json();
-      trailSegments = data.features;
-
-      trailLayer = L.geoJSON(data, {
-        style: { color: '#0077ff', weight: 3 }
-      }).addTo(map);
-
-      buildGraphFromTrails();
-      connectNearbySegments(25);
-      highlightDisconnectedEnds(25);
-      console.log('✅ Trails loaded, graph built, nearby paths connected.');
-    }
-
-    map.on('click', onMapClick);
+    map.locate({ setView: false, watch: false });
     loadTrails();
   </script>
 </body>
