@@ -313,7 +313,7 @@ function renderDirections(path) {
         }
       }
 
-      // Add the direction change message if applicable
+      // If direction change is found, add it to the directions list
       if (directionChange) {
         const li = document.createElement('li');
         li.textContent = directionChange;
@@ -328,6 +328,7 @@ function renderDirections(path) {
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
+
 
 
 </script>
