@@ -144,6 +144,7 @@ map.on('click', function (e) {
     if (!route) return alert("No path found.");
 
     renderRoute(route);
+    renderDirections(route);
   }
 });
 
@@ -198,8 +199,28 @@ function renderRoute(path) {
   
   // Update the route options dropdown
   const option = document.createElement('option');
-  option.text = `Route ${allPaths.length + 1}`;
+  option.text = `Route ${document.querySelectorAll('#routeSelect option').length + 1}`;
   document.getElementById('routeSelect').appendChild(option);
+}
+
+// Render directions for the route
+function renderDirections(path) {
+  const directionsList = document.getElementById('directions');
+  directionsList.innerHTML = ''; // Clear previous directions
+  
+  path.forEach((node, idx) => {
+    if (idx < path.length - 1) {
+      const nextNode = path[idx + 1];
+      const fromCoord = nodeCoords[node];
+      const toCoord = nodeCoords[nextNode];
+      const fromLatLng = L.latLng(fromCoord[1], fromCoord[0]);
+      const toLatLng = L.latLng(toCoord[1], toCoord[0]);
+      const directionText = `Go from (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
+      const li = document.createElement('li');
+      li.textContent = directionText;
+      directionsList.appendChild(li);
+    }
+  });
 }
 </script>
 
