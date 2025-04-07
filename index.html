@@ -105,7 +105,7 @@ function findClosestNode(latLng) {
 }
 
 // === NEW FUNCTION: CONNECT CLOSE ENDPOINTS ===
-function connectCloseEndpoints(data, thresholdMeters = 50) {
+function connectCloseEndpoints(data, thresholdMeters = 25) {
   const endpoints = [];
 
   data.features.forEach(f => {
