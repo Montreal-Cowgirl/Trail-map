@@ -178,6 +178,28 @@ map.on('click', function (e) {
   }
 });
 
+function renderRoute(path) {
+  // Log the path to ensure it is correct
+  console.log('Path to render:', path);
+
+  const routeCoords = path.map(node => nodeCoords[node]);
+  
+  // Log the route coordinates to ensure they're valid
+  console.log('Route coordinates:', routeCoords);
+
+  if (routeCoords.length > 0) {
+    // Remove existing route if present
+    if (routeLine) {
+      map.removeLayer(routeLine);
+    }
+    
+    // Add the new polyline route
+    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  } else {
+    console.error('No valid route coordinates found.');
+  }
+}
+
 function findShortestPath(start, end) {
   const distances = {};
   const previous = {};
@@ -215,19 +237,12 @@ function findShortestPath(start, end) {
     });
   }
 
+  // Log the path to ensure it's correct
+  console.log('Shortest path found:', path);
+
   return path.reverse();
 }
 
-function renderRoute(path) {
-  const routeCoords = path.map(node => nodeCoords[node]);
-  if (routeCoords.length > 0) {
-    if (routeLine) {
-      map.removeLayer(routeLine);  // Remove the existing route if present
-    }
-    // Create a new polyline for the route
-    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  }
-}
 
 
 function renderDirections(path) {
