@@ -1,187 +1,301 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Trail Map</title>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interactive Trail Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
   <style>
-    #map { height: 100vh; }
+    body { margin: 0; font-family: sans-serif; }
+    #map { height: 80vh; width: 100vw; }
+    #info { padding: 1rem; background: #f5f5f5; }
   </style>
 </head>
 <body>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-  <script>
-    let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
+<div id="map"></div>
+<div id="info">
+  <strong>Distance:</strong> <span id="distance">-</span> km <br />
+  <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
+  <strong>Directions:</strong>
+  <ol id="directions"></ol>
+</div>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+<script>
+let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
-    let trailData, graph = {}, nodeCoords = {};
-    let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-    let userMarker, routeLine;
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    const debugRedCircle = (latlng) =>
-      L.circleMarker(latlng, {
-        color: 'red',
-        radius: 5,
-        weight: 2,
-        fillOpacity: 0.8
-      }).addTo(map);
+let trailData, graph = {}, nodeCoords = {};
+let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
+let userMarker, routeLine;
 
-    function showUserLocation(position) {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
+function showUserLocation(position) {
+  const lat = position.coords.latitude;
+  const lng = position.coords.longitude;
 
-      if (userMarker) {
-        userMarker.setLatLng([lat, lng]);
-      } else {
-        userMarker = L.marker([lat, lng]).addTo(map);
-        map.setView([lat, lng], 15);
+  if (userMarker) {
+    userMarker.setLatLng([lat, lng]);
+  } else {
+    userMarker = L.marker([lat, lng]).addTo(map);
+    map.setView([lat, lng], 15);
+  }
+}
+
+function showError(error) {
+  console.warn(ERROR(${error.code}): ${error.message});
+}
+
+if (navigator.geolocation) {
+  navigator.geolocation.watchPosition(showUserLocation, showError, {
+    enableHighAccuracy: true,
+    maximumAge: 10000,
+    timeout: 5000
+  });
+} else {
+  alert("Geolocation is not supported by your browser.");
+}
+
+function coordKey(coord) {
+  return ${coord[1].toFixed(5)},${coord[0].toFixed(5)};
+}
+
+function addEdge(a, b, dist) {
+  if (!graph[a]) graph[a] = [];
+  graph[a].push({ node: b, dist });
+}
+
+function buildGraph(data) {
+  data.features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coordKey(coords[i]);
+        const b = coordKey(coords[i + 1]);
+        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+        addEdge(a, b, dist);
+        addEdge(b, a, dist);
+        nodeCoords[a] = coords[i];
+        nodeCoords[b] = coords[i + 1];
       }
     }
+  });
+}
 
-    function showError(error) {
-      console.warn(`ERROR(${error.code}): ${error.message}`);
-    }
+// Enhanced connection logic: connect any segments < 25m apart
+function connectNearbySegments(data, threshold = 25) {
+  const lineSegments = [];
 
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(showUserLocation, showError, {
-        enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 5000
-      });
-    } else {
-      alert("Geolocation is not supported by your browser.");
-    }
-
-    function coordKey(coord) {
-      return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
-    }
-
-    function addEdge(a, b, dist) {
-      if (!graph[a]) graph[a] = [];
-      graph[a].push({ node: b, dist });
-    }
-
-    function buildGraph(data) {
-      data.features.forEach(f => {
-        if (f.geometry.type === 'LineString') {
-          const coords = f.geometry.coordinates;
-          for (let i = 0; i < coords.length - 1; i++) {
-            const a = coordKey(coords[i]);
-            const b = coordKey(coords[i + 1]);
-            const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
-            addEdge(a, b, dist);
-            addEdge(b, a, dist);
-            nodeCoords[a] = coords[i];
-            nodeCoords[b] = coords[i + 1];
-          }
-        }
-      });
-    }
-
-    function highlightDisconnectedSegments(data, threshold = 25) {
-      const endPoints = [];
-
-      data.features.forEach(f => {
-        if (f.geometry.type === 'LineString') {
-          const coords = f.geometry.coordinates;
-          endPoints.push(coords[0], coords[coords.length - 1]);
-        }
-      });
-
-      endPoints.forEach((pt, idx) => {
-        let connected = false;
-        for (let other of endPoints) {
-          if (pt === other) continue;
-          const dist = turf.distance(turf.point(pt), turf.point(other), { units: 'meters' });
-          if (dist > 0 && dist < threshold) {
-            connected = true;
-            break;
-          }
-        }
-
-        if (!connected) {
-          debugRedCircle([pt[1], pt[0]]);
-        }
-      });
-
-      console.log("🔍 Disconnected segment endpoints highlighted.");
-    }
-
-    function connectNearbySegments(data, threshold = 25) {
-      const lineSegments = [];
-
-      data.features.forEach(f => {
-        if (f.geometry.type === 'LineString') {
-          const coords = f.geometry.coordinates;
-          for (let i = 0; i < coords.length - 1; i++) {
-            lineSegments.push([coords[i], coords[i + 1]]);
-          }
-        }
-      });
-
-      for (let i = 0; i < lineSegments.length; i++) {
-        for (let j = i + 1; j < lineSegments.length; j++) {
-          const line1 = turf.lineString(lineSegments[i]);
-          const line2 = turf.lineString(lineSegments[j]);
-
-          const options = { units: 'meters' };
-          const dist = turf.pointToLineDistance(turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]), line2, options);
-
-          if (dist <= threshold) {
-            const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]));
-            const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(line2.geometry.coordinates[0], line2.geometry.coordinates[1]));
-
-            const a = coordKey(pt1.geometry.coordinates);
-            const b = coordKey(pt2.geometry.coordinates);
-
-            const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
-
-            nodeCoords[a] = pt1.geometry.coordinates;
-            nodeCoords[b] = pt2.geometry.coordinates;
-
-            addEdge(a, b, distBetween);
-            addEdge(b, a, distBetween);
-          }
-        }
+  data.features.forEach(f => {
+    if (f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        lineSegments.push([coords[i], coords[i + 1]]);
       }
+    }
+  });
 
-      console.log("✅ Nearby trail segments connected.");
+  for (let i = 0; i < lineSegments.length; i++) {
+    for (let j = i + 1; j < lineSegments.length; j++) {
+      const line1 = turf.lineString(lineSegments[i]);
+      const line2 = turf.lineString(lineSegments[j]);
+
+      const options = { units: 'meters' };
+      const dist = turf.pointToLineDistance(turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]), line2, options);
+
+      if (dist <= threshold) {
+        const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]));
+        const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(line2.geometry.coordinates[0], line2.geometry.coordinates[1]));
+
+        const a = coordKey(pt1.geometry.coordinates);
+        const b = coordKey(pt2.geometry.coordinates);
+
+        const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
+
+        nodeCoords[a] = pt1.geometry.coordinates;
+        nodeCoords[b] = pt2.geometry.coordinates;
+
+        addEdge(a, b, distBetween);
+        addEdge(b, a, distBetween);
+      }
+    }
+  }
+
+  console.log("✅ Nearby trail segments connected.");
+}
+
+function findClosestNode(latLng) {
+  let minDist = Infinity;
+  let closestNode = null;
+  const threshold = 100;
+
+  Object.keys(nodeCoords).forEach(key => {
+    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
+    const dist = latLng.distanceTo(nodeLatLng);
+    if (dist < minDist && dist <= threshold) {
+      minDist = dist;
+      closestNode = key;
+    }
+  });
+
+  return closestNode;
+}
+
+fetch('trails.geojson')
+  .then(res => res.json())
+  .then(data => {
+    trailData = data;
+    L.geoJSON(data, { color: 'blue' }).addTo(map);
+    buildGraph(data);
+    connectNearbySegments(data, 25); // Use 25m threshold
+    console.log("✅ Trails loaded, graph built, nearby paths connected.");
+  });
+
+map.on('click', function (e) {
+  const snapped = findClosestNode(e.latlng);
+  if (!snapped) return alert("No nearby trail found.");
+  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
+
+// Create the start and end markers with standard pin icons in green and red
+
+const greenIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const redIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+// Inside map.on('click', ...) where you set startMarker and endMarker:
+if (clickCount === 0) {
+  if (startMarker) map.removeLayer(startMarker);
+  startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
+  startNode = snapped;
+  clickCount++;
+} else {
+  if (endMarker) map.removeLayer(endMarker);
+  endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
+  endNode = snapped;
+  clickCount = 0;
+
+  const route = findShortestPath(startNode, endNode);
+  if (!route) return alert("No path found.");
+  renderRoute(route);
+  renderDirections(route);
+}
+
+});
+
+function renderRoute(path) {
+  // Log the path to ensure it is correct
+  console.log('Path to render:', path);
+
+  const routeCoords = path.map(node => {
+    const coord = nodeCoords[node];
+    return [coord[1], coord[0]]; // Leaflet expects [lat, lng]
+  });
+
+  // Log the route coordinates to ensure they're valid
+  console.log('Route coordinates:', routeCoords);
+
+  if (routeCoords.length > 0) {
+    // Remove existing route if present
+    if (routeLine) {
+      map.removeLayer(routeLine);
+    }
+    
+    // Add the new polyline route
+    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  } else {
+    console.error('No valid route coordinates found.');
+  }
+}
+
+
+function findShortestPath(start, end) {
+  const distances = {};
+  const previous = {};
+  const nodes = new Set(Object.keys(graph));
+  let path = [];
+
+  nodes.forEach(node => distances[node] = Infinity);
+  distances[start] = 0;
+
+  while (nodes.size > 0) {
+    let minNode = null;
+    nodes.forEach(node => {
+      if (minNode === null || distances[node] < distances[minNode]) {
+        minNode = node;
+      }
+    });
+
+    if (minNode === end) {
+      while (previous[minNode]) {
+        path.push(minNode);
+        minNode = previous[minNode];
+      }
+      path.push(start);
+      break;
     }
 
-    function findClosestNode(latLng) {
-      let minDist = Infinity;
-      let closestNode = null;
-      const threshold = 100;
+    nodes.delete(minNode);
 
-      Object.keys(nodeCoords).forEach(key => {
-        const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
-        const dist = latLng.distanceTo(nodeLatLng);
-        if (dist < minDist && dist <= threshold) {
-          minDist = dist;
-          closestNode = key;
-        }
-      });
+    graph[minNode].forEach(neighbor => {
+      const alt = distances[minNode] + neighbor.dist;
+      if (alt < distances[neighbor.node]) {
+        distances[neighbor.node] = alt;
+        previous[neighbor.node] = minNode;
+      }
+    });
+  }
 
-      return closestNode;
+  // Log the path to ensure it's correct
+  console.log('Shortest path found:', path);
+
+  return path.reverse();
+}
+
+
+
+function renderDirections(path) {
+  const directionsList = document.getElementById('directions');
+  directionsList.innerHTML = '';
+  let totalDistance = 0;
+
+  path.forEach((node, idx) => {
+    if (idx < path.length - 1) {
+      const from = nodeCoords[node];
+      const to = nodeCoords[path[idx + 1]];
+      const dist = turf.distance(turf.point(from), turf.point(to));
+      totalDistance += dist;
+
+      const fromLatLng = L.latLng(from[1], from[0]);
+      const toLatLng = L.latLng(to[1], to[0]);
+
+      const li = document.createElement('li');
+      li.textContent = From (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)});
+      directionsList.appendChild(li);
     }
+  });
 
-    fetch('trails.geojson')
-      .then(res => res.json())
-      .then(data => {
-        trailData = data;
-        L.geoJSON(data, { color: 'blue' }).addTo(map);
-        buildGraph(data);
-        connectNearbySegments(data, 25);
-        highlightDisconnectedSegments(data, 25);
-        console.log("✅ Trails loaded, graph built, nearby paths connected.");
-      });
-  </script>
+  document.getElementById('distance').textContent = totalDistance.toFixed(2);
+  document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
+}
+</script>
+
 </body>
 </html>
