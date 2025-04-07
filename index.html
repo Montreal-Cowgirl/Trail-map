@@ -275,6 +275,7 @@ function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
   let totalDistance = 0;
+  let prevBearing = null;
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -286,15 +287,39 @@ function renderDirections(path) {
       const fromLatLng = L.latLng(from[1], from[0]);
       const toLatLng = L.latLng(to[1], to[0]);
 
-      const li = document.createElement('li');
-      li.textContent = `From (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
-      directionsList.appendChild(li);
+      // Calculate the bearing between current and next point
+      const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
+      
+      // Check if there's a significant change in direction (> 30 degrees)
+      let directionChange = '';
+      if (prevBearing !== null) {
+        const angleChange = Math.abs(bearingFrom - prevBearing);
+        if (angleChange > 30) {
+          if (angleChange > 180) {
+            directionChange = 'Turn around';
+          } else if (bearingFrom > prevBearing) {
+            directionChange = 'Turn right';
+          } else {
+            directionChange = 'Turn left';
+          }
+        }
+      }
+      
+      // Add the direction change message if applicable
+      if (directionChange) {
+        const li = document.createElement('li');
+        li.textContent = `${directionChange} from (${fromLatLng.lat.toFixed(5)}, ${fromLatLng.lng.toFixed(5)}) to (${toLatLng.lat.toFixed(5)}, ${toLatLng.lng.toFixed(5)})`;
+        directionsList.appendChild(li);
+      }
+
+      prevBearing = bearingFrom; // Update previous bearing for next iteration
     }
   });
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
+
 </script>
 
 </body>
