@@ -160,16 +160,32 @@ map.on('click', function (e) {
   if (!snapped) return alert("No nearby trail found.");
   const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
 
-  if (clickCount === 0) {
-    if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(snappedLatLng).addTo(map);
-    startNode = snapped;
-    clickCount++;
-  } else {
-    if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(snappedLatLng).addTo(map);
-    endNode = snapped;
-    clickCount = 0;
+// Replace startMarker and endMarker creation code with the following:
+
+if (clickCount === 0) {
+  if (startMarker) map.removeLayer(startMarker);
+  startMarker = L.marker(snappedLatLng, { icon: L.icon({ 
+    iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-green.png', 
+    iconSize: [25, 41], 
+    iconAnchor: [12, 41], 
+    popupAnchor: [1, -34], 
+    shadowUrl: 'https://leafletjs.com/examples/custom-icons/leaf-shadow.png', 
+    shadowSize: [41, 41] 
+  }) }).addTo(map);
+  startNode = snapped;
+  clickCount++;
+} else {
+  if (endMarker) map.removeLayer(endMarker);
+  endMarker = L.marker(snappedLatLng, { icon: L.icon({ 
+    iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-red.png', 
+    iconSize: [25, 41], 
+    iconAnchor: [12, 41], 
+    popupAnchor: [1, -34], 
+    shadowUrl: 'https://leafletjs.com/examples/custom-icons/leaf-shadow.png', 
+    shadowSize: [41, 41] 
+  }) }).addTo(map);
+  endNode = snapped;
+  clickCount = 0;
 
     const route = findShortestPath(startNode, endNode);
     if (!route) return alert("No path found.");
