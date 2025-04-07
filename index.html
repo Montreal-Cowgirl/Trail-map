@@ -223,7 +223,6 @@ function renderRoute(path) {
   const routeCoords = path.map(node => nodeCoords[node]);
   if (routeCoords.length > 0) {
     routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-    map.fitBounds(routeLine.getBounds());  // Zoom to fit route
   }
 }
 
