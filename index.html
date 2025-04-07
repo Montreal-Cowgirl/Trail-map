@@ -275,7 +275,6 @@ function renderDirections(path) {
   directionsList.innerHTML = '';
   let totalDistance = 0;
   let prevBearing = null;
-  let prevPoint = null;
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -291,7 +290,6 @@ function renderDirections(path) {
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
 
       // Check if there's a significant change in direction (> 30 degrees)
-      let directionChange = '';
       if (prevBearing !== null) {
         const angleChange = Math.abs(bearingFrom - prevBearing);
         if (angleChange > 30) {
@@ -309,26 +307,19 @@ function renderDirections(path) {
           const distanceToNextTurn = turf.distance(turf.point(to), turf.point(nextPointCoords));
 
           // Add the direction change with distance information
-          directionChange = `${direction} in ${Math.round(distanceToNextTurn)}m`;
+          const li = document.createElement('li');
+          li.textContent = `${direction} in ${Math.round(distanceToNextTurn)}m`;
+          directionsList.appendChild(li);
         }
       }
 
-      // If direction change is found, add it to the directions list
-      if (directionChange) {
-        const li = document.createElement('li');
-        li.textContent = directionChange;
-        directionsList.appendChild(li);
-      }
-
       prevBearing = bearingFrom; // Update previous bearing for next iteration
-      prevPoint = fromLatLng; // Update the previous point
     }
   });
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
-
 
 
 </script>
