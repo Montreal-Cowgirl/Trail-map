@@ -221,8 +221,12 @@ function findShortestPath(start, end) {
 function renderRoute(path) {
   if (routeLine) map.removeLayer(routeLine);  // Ensure previous route is removed
   const routeCoords = path.map(node => nodeCoords[node]);
+  
+  // Check if routeCoords has valid coordinates
   if (routeCoords.length > 0) {
     routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  } else {
+    console.error("No valid route coordinates to render.");
   }
 }
 
