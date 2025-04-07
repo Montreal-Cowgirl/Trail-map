@@ -172,7 +172,7 @@
       return closestNode;
     }
 
-    fetch('map.geojson')
+    fetch('trails.geojson')
       .then(res => res.json())
       .then(data => {
         trailData = data;
