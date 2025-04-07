@@ -270,7 +270,6 @@ function findShortestPath(start, end) {
 }
 
 
-
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
@@ -290,7 +289,7 @@ function renderDirections(path) {
 
       // Calculate the bearing between current and next point
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
-      
+
       // Check if there's a significant change in direction (> 30 degrees)
       let directionChange = '';
       if (prevBearing !== null) {
@@ -305,8 +304,9 @@ function renderDirections(path) {
             direction = 'Turn left';
           }
 
-          // Calculate the distance to the next turn
-          const distanceToNextTurn = turf.distance(turf.point(to), turf.point(nodeCoords[path[idx + 2]] || from));
+          // Calculate the distance to the next turn (next point in the path)
+          let nextPointCoords = nodeCoords[path[idx + 2]] || nodeCoords[path[idx + 1]];
+          const distanceToNextTurn = turf.distance(turf.point(to), turf.point(nextPointCoords));
 
           // Add the direction change with distance information
           directionChange = `${direction} in ${Math.round(distanceToNextTurn)}m`;
