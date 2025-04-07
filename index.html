@@ -173,7 +173,7 @@ map.on('click', function (e) {
 
     const route = findShortestPath(startNode, endNode);
     if (!route) return alert("No path found.");
-    renderRoute(route);
+    renderRoute(route);  // Ensure route is rendered
     renderDirections(route);
   }
 });
@@ -219,9 +219,12 @@ function findShortestPath(start, end) {
 }
 
 function renderRoute(path) {
+  if (routeLine) map.removeLayer(routeLine);  // Ensure previous route is removed
   const routeCoords = path.map(node => nodeCoords[node]);
-  if (routeLine) map.removeLayer(routeLine);
-  routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  if (routeCoords.length > 0) {
+    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+    map.fitBounds(routeLine.getBounds());  // Zoom to fit route
+  }
 }
 
 function renderDirections(path) {
