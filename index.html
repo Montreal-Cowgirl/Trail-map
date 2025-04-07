@@ -47,7 +47,7 @@
     let routeLine = null;
 
     async function loadTrails() {
-      const res = await fetch('trails.geojson');
+      const res = await fetch('map.geojson');
       const data = await res.json();
 
       trailLayer = L.geoJSON(data, {
