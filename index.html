@@ -286,14 +286,21 @@ function renderDirections(path) {
       // Calculate the bearing between current and next point
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
 
+      // Normalize bearing to be in the range [0, 360]
+      let normalizedBearing = bearingFrom % 360;
+      if (normalizedBearing < 0) normalizedBearing += 360;
+
       // Log the current bearing and distance to help with debugging
-      console.log(`From: ${from}, To: ${to}, Bearing: ${bearingFrom}, Distance: ${dist}`);
+      console.log(`From: ${from}, To: ${to}, Bearing: ${normalizedBearing}, Distance: ${dist}`);
 
       // If we have a previous point, calculate the angle change
       if (prevBearing !== null) {
-        const angleChange = Math.abs(bearingFrom - prevBearing);
+        let angleChange = Math.abs(normalizedBearing - prevBearing);
         
-        // Log the angle change to check if it's above the threshold
+        // Ensure the smallest angle change (e.g., 350 degrees vs 10 degrees)
+        if (angleChange > 180) angleChange = 360 - angleChange;
+
+        // Log the angle change and direction decision
         console.log(`Previous Bearing: ${prevBearing}, Angle Change: ${angleChange}`);
 
         // Only consider significant turns (greater than 30 degrees)
@@ -301,7 +308,7 @@ function renderDirections(path) {
           let direction = '';
           if (angleChange > 180) {
             direction = 'Turn around';
-          } else if (bearingFrom > prevBearing) {
+          } else if (normalizedBearing > prevBearing) {
             direction = 'Turn right';
           } else {
             direction = 'Turn left';
@@ -322,7 +329,7 @@ function renderDirections(path) {
       }
 
       // Update previous point and bearing for next iteration
-      prevBearing = bearingFrom;
+      prevBearing = normalizedBearing;
       prevPoint = to; // Update the previous point
     }
   });
