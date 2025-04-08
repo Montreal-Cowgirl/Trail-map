@@ -290,7 +290,7 @@ function renderDirections(path) {
         angleChange = ((angleChange + 540) % 360) - 180; // Normalize to [-180, 180]
         const absChange = Math.abs(angleChange);
 
-        if (absChange > 15) {
+        if (absChange > 25) {
           let direction = '';
           if (absChange > 135) {
             direction = 'Make a U-turn';
