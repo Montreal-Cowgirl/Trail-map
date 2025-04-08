@@ -112,7 +112,7 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-    connectNearbySegments(data, 25); // Use 25m threshold
+   
     console.log("✅ Trails loaded, graph built, nearby paths connected.");
   });
 
