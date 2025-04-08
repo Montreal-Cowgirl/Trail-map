@@ -290,29 +290,37 @@ function renderDirections(path) {
 
       console.log(`From: ${from}, To: ${to}, Bearing: ${normalizedBearing}, Distance: ${dist}`);
 
-      if (prevBearing !== null) {
-        let angleChange = Math.abs(normalizedBearing - prevBearing);
-        if (angleChange > 180) angleChange = 360 - angleChange;
+// Check for significant change in direction
+if (prevBearing !== null) {
+  let angleChange = bearingFrom - prevBearing;
 
-        console.log(`Previous Bearing: ${prevBearing}, Angle Change: ${angleChange}`);
+  // Normalize angle to range [-180, 180]
+  angleChange = ((angleChange + 540) % 360) - 180;
+  const absChange = Math.abs(angleChange);
 
-        if (angleChange > 30) {
-          let direction = '';
-          if (angleChange > 180) {
-            direction = 'Turn around';
-          } else if (normalizedBearing > prevBearing) {
-            direction = 'Turn right';
-          } else {
-            direction = 'Turn left';
-          }
+  if (absChange > 15) {
+    let direction = '';
+    if (absChange > 135) {
+      direction = 'Make a U-turn';
+    } else if (absChange > 90) {
+      direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+    } else if (absChange > 30) {
+      direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+    } else {
+      direction = angleChange > 0 ? 'Slight right' : 'Slight left';
+    }
 
-          const li = document.createElement('li');
-          li.textContent = `${direction} in ${Math.round(accumulatedSinceLastTurn * 1000)}m`;
-          directionsList.appendChild(li);
+    // Distance from current point to the turn point
+    const distanceToNextTurn = turf.distance(
+      turf.point(prevPoint), turf.point(from)
+    );
 
-          accumulatedSinceLastTurn = 0; // Reset counter after turn
-        }
-      }
+    const li = document.createElement('li');
+    li.textContent = `${direction} in ${Math.round(distanceToNextTurn * 1000)}m`;
+    directionsList.appendChild(li);
+  }
+}
+
 
       prevBearing = normalizedBearing;
     }
