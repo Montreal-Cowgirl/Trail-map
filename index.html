@@ -248,8 +248,8 @@ function renderRouteOptions(routes) {
       return sum;
     }, 0);
 
-    const colors = ['purple', 'orange', 'teal'];
-    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5,10' }).addTo(map);
+    const colors = ['orange', 'purple', 'hotpink'];
+    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5, 5' }).addTo(map);
     previewLines.push(line);
 
     const routeOption = document.createElement('div');
