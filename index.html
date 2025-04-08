@@ -275,42 +275,48 @@ function renderDirections(path) {
   let totalDistance = 0;
   let prevBearing = null;
   let prevPoint = null;
+  let distanceSinceLastTurn = 0;
 
-  path.forEach((node, idx) => {
-    if (idx < path.length - 1) {
-      const from = nodeCoords[node];
-      const to = nodeCoords[path[idx + 1]];
-      const dist = turf.distance(turf.point(from), turf.point(to));
-      totalDistance += dist;
+path.forEach((node, idx) => {
+  if (idx < path.length - 1) {
+    const from = nodeCoords[node];
+    const to = nodeCoords[path[idx + 1]];
+    const dist = turf.distance(turf.point(from), turf.point(to));
+    totalDistance += dist;
+    distanceSinceLastTurn += dist;
 
-      const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
+    const bearing = turf.bearing(turf.point(from), turf.point(to));
 
-      if (prevBearing !== null && prevPoint !== null) {
-        let angleChange = bearingFrom - prevBearing;
-        angleChange = ((angleChange + 540) % 360) - 180; // Normalize to [-180, 180]
-        const absChange = Math.abs(angleChange);
+    if (prevBearing !== null) {
+      let angleChange = bearing - prevBearing;
 
-        if (absChange > 25) {
-          let direction = '';
-          if (absChange > 135) {
-            direction = 'Make a U-turn';
-          } else if (absChange > 90) {
-            direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
-          } else if (absChange > 30) {
-            direction = angleChange > 0 ? 'Turn right' : 'Turn left';
-          } else {
-            direction = angleChange > 0 ? 'Slight right' : 'Slight left';
-          }
+      // Normalize the angle to [-180, 180]
+      if (angleChange > 180) angleChange -= 360;
+      if (angleChange < -180) angleChange += 360;
 
-          const distanceToNextTurn = turf.distance(turf.point(prevPoint), turf.point(from));
-          const li = document.createElement('li');
-          li.textContent = `${direction} in ${Math.round(distanceToNextTurn * 1000)}m`;
-          directionsList.appendChild(li);
+      const absChange = Math.abs(angleChange);
+
+      if (absChange > 25) {
+        let direction = '';
+        if (absChange > 135) {
+          direction = 'Make a U-turn';
+        } else if (absChange > 90) {
+          direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+        } else if (absChange > 30) {
+          direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+        } else {
+          direction = angleChange > 0 ? 'Slight right' : 'Slight left';
         }
-      }
 
-      // Update tracking
-      prevBearing = bearingFrom;
+        const li = document.createElement('li');
+        li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
+        directionsList.appendChild(li);
+
+        distanceSinceLastTurn = 0; // Reset after logging a direction
+      }
+    }
+
+      prevBearing = bearing;
       prevPoint = from;
     }
   });
