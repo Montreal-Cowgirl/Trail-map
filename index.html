@@ -86,8 +86,7 @@ function buildGraph(data) {
   });
 }
 
-// Enhanced connection logic: connect any segments < 25m apart
-
+// Removed the connectNearbySegments function
 
 function findClosestNode(latLng) {
   let minDist = Infinity;
@@ -112,8 +111,7 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-   
-    console.log("✅ Trails loaded, graph built, nearby paths connected.");
+    console.log("✅ Trails loaded, graph built.");
   });
 
 map.on('click', function (e) {
@@ -121,43 +119,42 @@ map.on('click', function (e) {
   if (!snapped) return alert("No nearby trail found.");
   const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
 
-// Create the start and end markers with standard pin icons in green and red
+  // Create the start and end markers with standard pin icons in green and red
+  const greenIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
 
-const greenIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+  const redIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
 
-const redIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+  // Inside map.on('click', ...) where you set startMarker and endMarker:
+  if (clickCount === 0) {
+    if (startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
+    startNode = snapped;
+    clickCount++;
+  } else {
+    if (endMarker) map.removeLayer(endMarker);
+    endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
+    endNode = snapped;
+    clickCount = 0;
 
-// Inside map.on('click', ...) where you set startMarker and endMarker:
-if (clickCount === 0) {
-  if (startMarker) map.removeLayer(startMarker);
-  startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
-  startNode = snapped;
-  clickCount++;
-} else {
-  if (endMarker) map.removeLayer(endMarker);
-  endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
-  endNode = snapped;
-  clickCount = 0;
-
-  const route = findShortestPath(startNode, endNode);
-  if (!route) return alert("No path found.");
-  renderRoute(route);
-  renderDirections(route);
-}
+    const route = findShortestPath(startNode, endNode);
+    if (!route) return alert("No path found.");
+    renderRoute(route);
+    renderDirections(route);
+  }
 
 });
 
@@ -238,44 +235,44 @@ function renderDirections(path) {
   let prevPoint = null;
   let distanceSinceLastTurn = 0;
 
-path.forEach((node, idx) => {
-  if (idx < path.length - 1) {
-    const from = nodeCoords[node];
-    const to = nodeCoords[path[idx + 1]];
-    const dist = turf.distance(turf.point(from), turf.point(to));
-    totalDistance += dist;
-    distanceSinceLastTurn += dist;
+  path.forEach((node, idx) => {
+    if (idx < path.length - 1) {
+      const from = nodeCoords[node];
+      const to = nodeCoords[path[idx + 1]];
+      const dist = turf.distance(turf.point(from), turf.point(to));
+      totalDistance += dist;
+      distanceSinceLastTurn += dist;
 
-    const bearing = turf.bearing(turf.point(from), turf.point(to));
+      const bearing = turf.bearing(turf.point(from), turf.point(to));
 
-    if (prevBearing !== null) {
-      let angleChange = bearing - prevBearing;
+      if (prevBearing !== null) {
+        let angleChange = bearing - prevBearing;
 
-      // Normalize the angle to [-180, 180]
-      if (angleChange > 180) angleChange -= 360;
-      if (angleChange < -180) angleChange += 360;
+        // Normalize the angle to [-180, 180]
+        if (angleChange > 180) angleChange -= 360;
+        if (angleChange < -180) angleChange += 360;
 
-      const absChange = Math.abs(angleChange);
+        const absChange = Math.abs(angleChange);
 
-      if (absChange > 30) {
-        let direction = '';
-        if (absChange > 135) {
-          direction = 'Make a U-turn';
-        } else if (absChange > 90) {
-          direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
-        } else if (absChange > 30) {
-          direction = angleChange > 0 ? 'Turn right' : 'Turn left';
-        } else {
-          direction = angleChange > 0 ? 'Slight right' : 'Slight left';
+        if (absChange > 30) {
+          let direction = '';
+          if (absChange > 135) {
+            direction = 'Make a U-turn';
+          } else if (absChange > 90) {
+            direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+          } else if (absChange > 30) {
+            direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+          } else {
+            direction = angleChange > 0 ? 'Slight right' : 'Slight left';
+          }
+
+          const li = document.createElement('li');
+          li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
+          directionsList.appendChild(li);
+
+          distanceSinceLastTurn = 0; // Reset after logging a direction
         }
-
-        const li = document.createElement('li');
-        li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
-        directionsList.appendChild(li);
-
-        distanceSinceLastTurn = 0; // Reset after logging a direction
       }
-    }
 
       prevBearing = bearing;
       prevPoint = from;
@@ -285,9 +282,6 @@ path.forEach((node, idx) => {
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
-
-
-
 </script>
 
 </body>
