@@ -203,30 +203,48 @@ map.on('click', function (e) {
 // Function to find multiple shortest paths using modified Dijkstra's
 function findMultipleRoutes(start, end, numRoutes = 3) {
   const allPaths = [];
-  const visited = new Set();
+  const visitedPaths = new Set();
 
-  function dijkstraBlocked(blockedEdges = []) {
+  function getAngle(p1, p2, p3) {
+    const toRadians = deg => deg * Math.PI / 180;
+    const toDegrees = rad => rad * 180 / Math.PI;
+
+    const [lat1, lon1] = p1.split(',').map(Number);
+    const [lat2, lon2] = p2.split(',').map(Number);
+    const [lat3, lon3] = p3.split(',').map(Number);
+
+    const v1 = [lat2 - lat1, lon2 - lon1];
+    const v2 = [lat3 - lat2, lon3 - lon2];
+
+    const dot = v1[0]*v2[0] + v1[1]*v2[1];
+    const mag1 = Math.hypot(...v1);
+    const mag2 = Math.hypot(...v2);
+    const angle = Math.acos(dot / (mag1 * mag2));
+
+    return toDegrees(angle);
+  }
+
+  function dijkstraWithBlockedEdges(blockedEdges) {
     const distances = {};
     const previous = {};
     const pq = new Set(Object.keys(graph));
     const blockedSet = new Set(blockedEdges.map(edge => `${edge[0]}->${edge[1]}`));
 
-    Object.keys(graph).forEach(node => distances[node] = Infinity);
+    for (const node in graph) distances[node] = Infinity;
     distances[start] = 0;
 
     while (pq.size > 0) {
       let current = null;
-      pq.forEach(n => {
-        if (current === null || distances[n] < distances[current]) {
-          current = n;
+      for (const node of pq) {
+        if (current === null || distances[node] < distances[current]) {
+          current = node;
         }
-      });
+      }
 
       if (current === end) break;
       pq.delete(current);
 
-      if (!graph[current]) continue;
-      for (const neighbor of graph[current]) {
+      for (const neighbor of graph[current] || []) {
         const edgeKey = `${current}->${neighbor.node}`;
         if (blockedSet.has(edgeKey)) continue;
 
@@ -238,7 +256,7 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
       }
     }
 
-    let path = [];
+    const path = [];
     let current = end;
     while (previous[current]) {
       path.unshift(current);
@@ -251,23 +269,39 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     return [];
   }
 
-  let blockedEdges = [];
-  for (let i = 0; i < numRoutes; i++) {
-    const path = dijkstraBlocked(blockedEdges);
-    if (!path.length || visited.has(path.toString())) break;
+  // First path: baseline route
+  const firstPath = dijkstraWithBlockedEdges([]);
+  if (firstPath.length) {
+    allPaths.push(firstPath);
+    visitedPaths.add(firstPath.join('->'));
+  } else {
+    return allPaths;
+  }
 
-    allPaths.push(path);
-    visited.add(path.toString());
+  // Identify turning points
+  const turnEdges = [];
+  for (let i = 1; i < firstPath.length - 1; i++) {
+    const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
+    if (angle < 135) {  // Sharp enough turn
+      turnEdges.push([firstPath[i], firstPath[i + 1]]);
+    }
+  }
 
-    // Penalize a different edge for next run
-    if (path.length > 1) {
-      blockedEdges.push([path[0], path[1]]);  // Block first edge of previous path
+  // Try blocking each turn individually to generate new routes
+  for (const edge of turnEdges) {
+    const newPath = dijkstraWithBlockedEdges([edge]);
+    const pathStr = newPath.join('->');
+    if (newPath.length && !visitedPaths.has(pathStr)) {
+      allPaths.push(newPath);
+      visitedPaths.add(pathStr);
+      if (allPaths.length >= numRoutes) break;
     }
   }
 
   console.log("✅ Found multiple routes:", allPaths);
   return allPaths;
 }
+
 
 
 // Render the available route options for user selection
