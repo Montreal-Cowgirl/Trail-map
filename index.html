@@ -12,6 +12,16 @@
     #map { height: 80vh; width: 100vw; }
     #info { padding: 1rem; background: #f5f5f5; }
     #route-options { margin-top: 1rem; }
+    .route-option {
+      margin: 4px 0;
+      cursor: pointer;
+      padding: 4px 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+    }
+    .route-option:hover {
+      background: #d0d0d0;
+    }
   </style>
 </head>
 <body>
@@ -22,7 +32,7 @@
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
   <ol id="directions"></ol>
-  <div id="route-options"></div> <!-- Area to display available routes -->
+  <div id="route-options"></div>
 </div>
 
 <script>
@@ -35,32 +45,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
 let userMarker, routeLine;
-
-function showUserLocation(position) {
-  const lat = position.coords.latitude;
-  const lng = position.coords.longitude;
-
-  if (userMarker) {
-    userMarker.setLatLng([lat, lng]);
-  } else {
-    userMarker = L.marker([lat, lng]).addTo(map);
-    map.setView([lat, lng], 15);
-  }
-}
-
-function showError(error) {
-  console.warn(`ERROR(${error.code}): ${error.message}`);
-}
-
-if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(showUserLocation, showError, {
-    enableHighAccuracy: true,
-    maximumAge: 10000,
-    timeout: 5000
-  });
-} else {
-  alert("Geolocation is not supported by your browser.");
-}
+let previewLines = [];
 
 function coordKey(coord) {
   return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
@@ -88,10 +73,8 @@ function buildGraph(data) {
   });
 }
 
-// Enhanced connection logic: connect any segments < 25m apart
 function connectNearbySegments(data, threshold = 25) {
   const lineSegments = [];
-
   data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
       const coords = f.geometry.coordinates;
@@ -105,36 +88,28 @@ function connectNearbySegments(data, threshold = 25) {
     for (let j = i + 1; j < lineSegments.length; j++) {
       const line1 = turf.lineString(lineSegments[i]);
       const line2 = turf.lineString(lineSegments[j]);
-
-      const options = { units: 'meters' };
-      const dist = turf.pointToLineDistance(turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]), line2, options);
-
+      const dist = turf.pointToLineDistance(
+        turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]),
+        line2,
+        { units: 'meters' }
+      );
       if (dist <= threshold) {
-        const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]));
-        const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(line2.geometry.coordinates[0], line2.geometry.coordinates[1]));
-
+        const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(...line1.geometry.coordinates));
+        const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(...line2.geometry.coordinates));
         const a = coordKey(pt1.geometry.coordinates);
         const b = coordKey(pt2.geometry.coordinates);
-
         const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
-
         nodeCoords[a] = pt1.geometry.coordinates;
         nodeCoords[b] = pt2.geometry.coordinates;
-
         addEdge(a, b, distBetween);
         addEdge(b, a, distBetween);
       }
     }
   }
-
-  console.log("✅ Nearby trail segments connected.");
 }
 
 function findClosestNode(latLng) {
-  let minDist = Infinity;
-  let closestNode = null;
-  const threshold = 100;
-
+  let minDist = Infinity, closestNode = null, threshold = 100;
   Object.keys(nodeCoords).forEach(key => {
     const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
     const dist = latLng.distanceTo(nodeLatLng);
@@ -143,7 +118,6 @@ function findClosestNode(latLng) {
       closestNode = key;
     }
   });
-
   return closestNode;
 }
 
@@ -153,8 +127,7 @@ fetch('map.geojson')
     trailData = data;
     L.geoJSON(data, { color: 'blue' }).addTo(map);
     buildGraph(data);
-    connectNearbySegments(data, 25); // Use 25m threshold
-    console.log("✅ Trails loaded, graph built, nearby paths connected.");
+    connectNearbySegments(data, 25);
   });
 
 map.on('click', function (e) {
@@ -162,23 +135,15 @@ map.on('click', function (e) {
   if (!snapped) return alert("No nearby trail found.");
   const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
 
-  // Create the start and end markers with standard pin icons in green and red
   const greenIcon = L.icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
   });
-
   const redIcon = L.icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
   });
 
   if (clickCount === 0) {
@@ -191,63 +156,38 @@ map.on('click', function (e) {
     endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
     endNode = snapped;
     clickCount = 0;
-
-    // Find the 3 quickest routes
     const routes = findMultipleRoutes(startNode, endNode, 3);
     if (!routes || routes.length === 0) return alert("No path found.");
-
     renderRouteOptions(routes);
   }
 });
 
-// Function to find multiple shortest paths using modified Dijkstra's
 function findMultipleRoutes(start, end, numRoutes = 3) {
-  const allPaths = [];
-  const visitedPaths = new Set();
+  const allPaths = [], visitedPaths = new Set();
 
   function getAngle(p1, p2, p3) {
-    const toRadians = deg => deg * Math.PI / 180;
-    const toDegrees = rad => rad * 180 / Math.PI;
-
     const [lat1, lon1] = p1.split(',').map(Number);
     const [lat2, lon2] = p2.split(',').map(Number);
     const [lat3, lon3] = p3.split(',').map(Number);
-
-    const v1 = [lat2 - lat1, lon2 - lon1];
-    const v2 = [lat3 - lat2, lon3 - lon2];
-
+    const v1 = [lat2 - lat1, lon2 - lon1], v2 = [lat3 - lat2, lon3 - lon2];
     const dot = v1[0]*v2[0] + v1[1]*v2[1];
-    const mag1 = Math.hypot(...v1);
-    const mag2 = Math.hypot(...v2);
-    const angle = Math.acos(dot / (mag1 * mag2));
-
-    return toDegrees(angle);
+    const mag1 = Math.hypot(...v1), mag2 = Math.hypot(...v2);
+    return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
   }
 
   function dijkstraWithBlockedEdges(blockedEdges) {
-    const distances = {};
-    const previous = {};
-    const pq = new Set(Object.keys(graph));
-    const blockedSet = new Set(blockedEdges.map(edge => `${edge[0]}->${edge[1]}`));
-
-    for (const node in graph) distances[node] = Infinity;
+    const distances = {}, previous = {}, pq = new Set(Object.keys(graph));
+    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+    Object.keys(graph).forEach(n => distances[n] = Infinity);
     distances[start] = 0;
 
     while (pq.size > 0) {
-      let current = null;
-      for (const node of pq) {
-        if (current === null || distances[node] < distances[current]) {
-          current = node;
-        }
-      }
-
+      let current = [...pq].reduce((a, b) => distances[a] < distances[b] ? a : b);
       if (current === end) break;
       pq.delete(current);
-
       for (const neighbor of graph[current] || []) {
         const edgeKey = `${current}->${neighbor.node}`;
         if (blockedSet.has(edgeKey)) continue;
-
         const alt = distances[current] + neighbor.dist;
         if (alt < distances[neighbor.node]) {
           distances[neighbor.node] = alt;
@@ -257,37 +197,29 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     }
 
     const path = [];
-    let current = end;
-    while (previous[current]) {
-      path.unshift(current);
-      current = previous[current];
+    let curr = end;
+    while (previous[curr]) {
+      path.unshift(curr);
+      curr = previous[curr];
     }
-    if (current === start) {
+    if (curr === start) {
       path.unshift(start);
       return path;
     }
     return [];
   }
 
-  // First path: baseline route
   const firstPath = dijkstraWithBlockedEdges([]);
-  if (firstPath.length) {
-    allPaths.push(firstPath);
-    visitedPaths.add(firstPath.join('->'));
-  } else {
-    return allPaths;
-  }
+  if (!firstPath.length) return allPaths;
+  allPaths.push(firstPath);
+  visitedPaths.add(firstPath.join('->'));
 
-  // Identify turning points
   const turnEdges = [];
   for (let i = 1; i < firstPath.length - 1; i++) {
     const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
-    if (angle < 135) {  // Sharp enough turn
-      turnEdges.push([firstPath[i], firstPath[i + 1]]);
-    }
+    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
   }
 
-  // Try blocking each turn individually to generate new routes
   for (const edge of turnEdges) {
     const newPath = dijkstraWithBlockedEdges([edge]);
     const pathStr = newPath.join('->');
@@ -298,106 +230,85 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     }
   }
 
-  console.log("✅ Found multiple routes:", allPaths);
   return allPaths;
 }
 
-
-
-// Render the available route options for user selection
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
-  routeOptionsDiv.innerHTML = ''; // Clear previous options
+  routeOptionsDiv.innerHTML = '';
+  previewLines.forEach(line => map.removeLayer(line));
+  previewLines = [];
 
   routes.forEach((route, idx) => {
+    const routeCoords = route.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
+    const totalDist = route.reduce((sum, node, i) => {
+      if (i < route.length - 1) {
+        return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[route[i + 1]]));
+      }
+      return sum;
+    }, 0);
+
+    const colors = ['purple', 'orange', 'teal'];
+    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5,10' }).addTo(map);
+    previewLines.push(line);
+
     const routeOption = document.createElement('div');
     routeOption.classList.add('route-option');
-    routeOption.textContent = `Route ${idx + 1}: ${route.length} steps`;
+    routeOption.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
 
     routeOption.onclick = () => {
-      console.log(`Route ${idx + 1} selected`);
-      renderRoute(route);  // Render the selected route
-      renderDirections(route);  // Render the directions for selected route
+      previewLines.forEach(line => map.removeLayer(line));
+      renderRoute(route);
+      renderDirections(route);
     };
 
     routeOptionsDiv.appendChild(routeOption);
   });
 }
 
-// Function to render the route
 function renderRoute(path) {
-  const routeCoords = path.map(node => {
-    const coord = nodeCoords[node];
-    return [coord[1], coord[0]]; // Leaflet expects [lat, lng]
-  });
-
-  if (routeCoords.length > 0) {
-    if (routeLine) {
-      map.removeLayer(routeLine);
-    }
-
-    routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  } else {
-    console.error('No valid route coordinates found.');
-  }
+  const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
 }
 
-// Function to render directions for the selected route
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
-  let totalDistance = 0;
-  let prevBearing = null;
-  let prevPoint = null;
-  let distanceSinceLastTurn = 0;
+  let totalDistance = 0, prevBearing = null, distanceSinceLastTurn = 0;
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
-      const from = nodeCoords[node];
-      const to = nodeCoords[path[idx + 1]];
+      const from = nodeCoords[node], to = nodeCoords[path[idx + 1]];
       const dist = turf.distance(turf.point(from), turf.point(to));
       totalDistance += dist;
       distanceSinceLastTurn += dist;
-
       const bearing = turf.bearing(turf.point(from), turf.point(to));
-
       if (prevBearing !== null) {
         let angleChange = bearing - prevBearing;
-
         if (angleChange > 180) angleChange -= 360;
         if (angleChange < -180) angleChange += 360;
-
         const absChange = Math.abs(angleChange);
-
         if (absChange > 25) {
           let direction = '';
-          if (absChange > 135) {
-            direction = 'Make a U-turn';
-          } else if (absChange > 90) {
-            direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
-          } else if (absChange > 30) {
-            direction = angleChange > 0 ? 'Turn right' : 'Turn left';
-          } else {
-            direction = angleChange > 0 ? 'Slight right' : 'Slight left';
-          }
+          if (absChange > 135) direction = 'Make a U-turn';
+          else if (absChange > 90) direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+          else if (absChange > 30) direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+          else direction = angleChange > 0 ? 'Slight right' : 'Slight left';
 
           const li = document.createElement('li');
           li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
           directionsList.appendChild(li);
-
-          distanceSinceLastTurn = 0; // Reset after logging a direction
+          distanceSinceLastTurn = 0;
         }
       }
-
       prevBearing = bearing;
-      prevPoint = from;
     }
   });
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
-  document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
+  document.getElementById('time').textContent = Math.round(totalDistance * 12);
 }
-
 </script>
 
 </body>
