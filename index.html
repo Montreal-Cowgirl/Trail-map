@@ -274,7 +274,7 @@ function renderDirections(path) {
   directionsList.innerHTML = '';
   let totalDistance = 0;
   let prevBearing = null;
-  let prevPoint = null; // This will keep track of the previous point for accurate distance calculation
+  let accumulatedSinceLastTurn = 0;
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -282,28 +282,20 @@ function renderDirections(path) {
       const to = nodeCoords[path[idx + 1]];
       const dist = turf.distance(turf.point(from), turf.point(to));
       totalDistance += dist;
+      accumulatedSinceLastTurn += dist;
 
-      // Calculate the bearing between current and next point
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
-
-      // Normalize bearing to be in the range [0, 360]
       let normalizedBearing = bearingFrom % 360;
       if (normalizedBearing < 0) normalizedBearing += 360;
 
-      // Log the current bearing and distance to help with debugging
       console.log(`From: ${from}, To: ${to}, Bearing: ${normalizedBearing}, Distance: ${dist}`);
 
-      // If we have a previous point, calculate the angle change
       if (prevBearing !== null) {
         let angleChange = Math.abs(normalizedBearing - prevBearing);
-        
-        // Ensure the smallest angle change (e.g., 350 degrees vs 10 degrees)
         if (angleChange > 180) angleChange = 360 - angleChange;
 
-        // Log the angle change and direction decision
         console.log(`Previous Bearing: ${prevBearing}, Angle Change: ${angleChange}`);
 
-        // Only consider significant turns (greater than 30 degrees)
         if (angleChange > 30) {
           let direction = '';
           if (angleChange > 180) {
@@ -314,30 +306,21 @@ function renderDirections(path) {
             direction = 'Turn left';
           }
 
-          // Calculate the distance to the next turn (next point in the path)
-          const nextPointCoords = nodeCoords[path[idx + 2]] || nodeCoords[path[idx + 1]];
-          const distanceToNextTurn = turf.distance(turf.point(to), turf.point(nextPointCoords));
-
-          // Log the next point and distance to the next turn
-          console.log(`Next Point: ${nextPointCoords}, Distance to next turn: ${distanceToNextTurn}`);
-
-          // Add the direction change with distance information
           const li = document.createElement('li');
-          li.textContent = `${direction} in ${Math.round(distanceToNextTurn)}m`;
+          li.textContent = `${direction} in ${Math.round(accumulatedSinceLastTurn * 1000)}m`;
           directionsList.appendChild(li);
+
+          accumulatedSinceLastTurn = 0; // Reset counter after turn
         }
       }
 
-      // Update previous point and bearing for next iteration
       prevBearing = normalizedBearing;
-      prevPoint = to; // Update the previous point
     }
   });
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
-
 
 
 </script>
