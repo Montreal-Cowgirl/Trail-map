@@ -274,7 +274,7 @@ function renderDirections(path) {
   directionsList.innerHTML = '';
   let totalDistance = 0;
   let prevBearing = null;
-  let accumulatedSinceLastTurn = 0;
+  let prevPoint = null;
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -282,53 +282,43 @@ function renderDirections(path) {
       const to = nodeCoords[path[idx + 1]];
       const dist = turf.distance(turf.point(from), turf.point(to));
       totalDistance += dist;
-      accumulatedSinceLastTurn += dist;
 
       const bearingFrom = turf.bearing(turf.point(from), turf.point(to));
-      let normalizedBearing = bearingFrom % 360;
-      if (normalizedBearing < 0) normalizedBearing += 360;
 
-      console.log(`From: ${from}, To: ${to}, Bearing: ${normalizedBearing}, Distance: ${dist}`);
+      if (prevBearing !== null && prevPoint !== null) {
+        let angleChange = bearingFrom - prevBearing;
+        angleChange = ((angleChange + 540) % 360) - 180; // Normalize to [-180, 180]
+        const absChange = Math.abs(angleChange);
 
-// Check for significant change in direction
-if (prevBearing !== null) {
-  let angleChange = bearingFrom - prevBearing;
+        if (absChange > 15) {
+          let direction = '';
+          if (absChange > 135) {
+            direction = 'Make a U-turn';
+          } else if (absChange > 90) {
+            direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+          } else if (absChange > 30) {
+            direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+          } else {
+            direction = angleChange > 0 ? 'Slight right' : 'Slight left';
+          }
 
-  // Normalize angle to range [-180, 180]
-  angleChange = ((angleChange + 540) % 360) - 180;
-  const absChange = Math.abs(angleChange);
+          const distanceToNextTurn = turf.distance(turf.point(prevPoint), turf.point(from));
+          const li = document.createElement('li');
+          li.textContent = `${direction} in ${Math.round(distanceToNextTurn * 1000)}m`;
+          directionsList.appendChild(li);
+        }
+      }
 
-  if (absChange > 15) {
-    let direction = '';
-    if (absChange > 135) {
-      direction = 'Make a U-turn';
-    } else if (absChange > 90) {
-      direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
-    } else if (absChange > 30) {
-      direction = angleChange > 0 ? 'Turn right' : 'Turn left';
-    } else {
-      direction = angleChange > 0 ? 'Slight right' : 'Slight left';
-    }
-
-    // Distance from current point to the turn point
-    const distanceToNextTurn = turf.distance(
-      turf.point(prevPoint), turf.point(from)
-    );
-
-    const li = document.createElement('li');
-    li.textContent = `${direction} in ${Math.round(distanceToNextTurn * 1000)}m`;
-    directionsList.appendChild(li);
-  }
-}
-
-
-      prevBearing = normalizedBearing;
+      // Update tracking
+      prevBearing = bearingFrom;
+      prevPoint = from;
     }
   });
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12); // 5 km/h = 12 min/km
 }
+
 
 
 </script>
