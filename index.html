@@ -159,7 +159,21 @@ map.on('click', function (e) {
   }
 });
 
-// Function to find multiple shortest paths using modified Dijkstra's
+
+  // Function to calculate the angle between three points
+function getAngle(start, middle, end) {
+  const startLatLng = L.latLng(nodeCoords[start][1], nodeCoords[start][0]);
+  const middleLatLng = L.latLng(nodeCoords[middle][1], nodeCoords[middle][0]);
+  const endLatLng = L.latLng(nodeCoords[end][1], nodeCoords[end][0]);
+
+  const angle1 = Math.atan2(middleLatLng.lat - startLatLng.lat, middleLatLng.lng - startLatLng.lng);
+  const angle2 = Math.atan2(endLatLng.lat - middleLatLng.lat, endLatLng.lng - middleLatLng.lng);
+
+  const angle = (angle2 - angle1) * (180 / Math.PI);
+  return Math.abs(angle);
+}
+
+  // Function to find multiple shortest paths using modified Dijkstra's
 function findMultipleRoutes(start, end, numRoutes = 3) {
   const allPaths = [];
   const visitedPaths = new Set();
