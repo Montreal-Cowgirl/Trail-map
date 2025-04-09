@@ -44,8 +44,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let trailData, graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-let userMarker, routeLine;
-let previewLines = [];
+let routeLine;
 
 function coordKey(coord) {
   return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
@@ -85,14 +84,8 @@ function connectNearbySegments(data, threshold = 25) {
     }
   });
 
-  const seenPairs = new Set();
-
   for (let i = 0; i < lineSegments.length; i++) {
     for (let j = i + 1; j < lineSegments.length; j++) {
-      const idPair = `${i}-${j}`;
-      if (seenPairs.has(idPair)) continue;
-      seenPairs.add(idPair);
-
       const line1 = turf.lineString(lineSegments[i]);
       const line2 = turf.lineString(lineSegments[j]);
       const mid1 = turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]);
@@ -107,13 +100,10 @@ function connectNearbySegments(data, threshold = 25) {
         const b = coordKey(pt2.geometry.coordinates);
         const distBetween = turf.distance(pt1, pt2);
 
-        // Reject jumps if distance < threshold but direction angles differ wildly (to avoid jumping at forks)
         const bearing1 = turf.bearing(line1.geometry.coordinates[0], line1.geometry.coordinates[1]);
         const bearing2 = turf.bearing(line2.geometry.coordinates[0], line2.geometry.coordinates[1]);
         const angleDiff = Math.abs(bearing1 - bearing2);
         if (angleDiff > 30) continue;
-
-        console.log(`Connecting nearby segments between ${a} and ${b}, dist=${(distBetween * 1000).toFixed(1)}m, angleDiff=${angleDiff.toFixed(1)}°`);
 
         nodeCoords[a] = pt1.geometry.coordinates;
         nodeCoords[b] = pt2.geometry.coordinates;
@@ -135,6 +125,73 @@ function findClosestNode(latLng) {
     }
   });
   return closestNode;
+}
+
+function dijkstra(start, end) {
+  const visited = new Set();
+  const dist = {}, prev = {};
+  dist[start] = 0;
+  const pq = [[0, start]];
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a[0] - b[0]);
+    const [currDist, node] = pq.shift();
+    if (visited.has(node)) continue;
+    visited.add(node);
+    if (node === end) break;
+
+    (graph[node] || []).forEach(({ node: neighbor, dist: d }) => {
+      const alt = currDist + d;
+      if (alt < (dist[neighbor] ?? Infinity)) {
+        dist[neighbor] = alt;
+        prev[neighbor] = node;
+        pq.push([alt, neighbor]);
+      }
+    });
+  }
+
+  const path = [];
+  let u = end;
+  while (u && prev[u]) {
+    path.unshift(u);
+    u = prev[u];
+  }
+  if (u === start) path.unshift(start);
+  return path;
+}
+
+function generateDirections(path) {
+  const instructions = [];
+  for (let i = 1; i < path.length - 1; i++) {
+    const prev = turf.point(nodeCoords[path[i - 1]]);
+    const curr = turf.point(nodeCoords[path[i]]);
+    const next = turf.point(nodeCoords[path[i + 1]]);
+    const angle = Math.abs(turf.bearing(prev, curr) - turf.bearing(curr, next));
+    if (angle > 30) {
+      const turn = turf.bearing(curr, next) > turf.bearing(prev, curr) ? "right" : "left";
+      instructions.push(`Turn ${turn} at point ${i}`);
+    }
+  }
+  return instructions;
+}
+
+function displayRoute(path) {
+  if (routeLine) map.removeLayer(routeLine);
+  const coords = path.map(p => nodeCoords[p]);
+  routeLine = L.polyline(coords, { color: 'orange', weight: 5 }).addTo(map);
+
+  const dist = turf.length(turf.lineString(coords));
+  document.getElementById('distance').textContent = dist.toFixed(2);
+  document.getElementById('time').textContent = Math.round((dist / 5) * 60);
+
+  const dirList = document.getElementById('directions');
+  dirList.innerHTML = '';
+  const steps = generateDirections(path);
+  steps.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = s;
+    dirList.appendChild(li);
+  });
 }
 
 fetch('map.geojson')
@@ -172,7 +229,10 @@ map.on('click', function (e) {
     endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
     endNode = snapped;
     clickCount = 0;
-    alert("Start and end set. Routing logic not included in this version.");
+
+    const route = dijkstra(startNode, endNode);
+    if (route.length > 1) displayRoute(route);
+    else alert("No route found");
   }
 });
 </script>
