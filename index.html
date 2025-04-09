@@ -560,19 +560,18 @@ fetch('map.geojson')
   .then(data => {
     geojsonData = data;
     const dropdown = document.getElementById('season-select');
-    
-    // ✅ When season is changed
-    dropdown.addEventListener('change', () => {
-    console.log("Season dropdown changed to:", dropdown.value);
-    displayFilteredTrails();                   // ✅ Show the correct trails
-    buildGraph(geojsonData, dropdown.value);   // ✅ Rebuild the route graph
-  });
 
-     // ✅ On initial load
-    displayFilteredTrails();
-    buildGraph(data, dropdown.value);
-})
-.catch(err => console.error("Failed to load map data:", err));
+    dropdown.addEventListener('change', () => {
+      console.log("Season dropdown changed to:", dropdown.value);
+      buildGraph(geojsonData, dropdown.value);
+      displayFilteredTrails(); // <--- ADDED: redraw visible trails
+    });
+
+    buildGraph(data, dropdown.value);   // build routing graph
+    displayFilteredTrails();            // <--- ADDED: draw trails initially
+  })
+  .catch(err => console.error("Failed to load map data:", err));
+
   
 </script>
 
