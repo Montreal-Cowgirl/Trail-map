@@ -395,10 +395,13 @@ map.on("click", e => {
   let minDist = Infinity;
   let snappedPoint = null;
 
-  geojsonData.features.forEach(f => {
+  // Step 1: Filter features by season and snap click to nearest trail
+  const filteredFeatures = geojsonData.features.filter(f => {
     const name = f.properties.name || f.properties.NOM || "";
-    if (!hasSeasonKeyword(name, allowedKeywords)) return;
+    return hasSeasonKeyword(name, allowedKeywords);
+  });
 
+  filteredFeatures.forEach(f => {
     if (f.geometry.type === 'LineString') {
       const line = turf.lineString(f.geometry.coordinates);
       const candidate = turf.nearestPointOnLine(line, clickPoint, { units: 'kilometers' });
@@ -416,39 +419,40 @@ map.on("click", e => {
     return;
   }
 
-  const snappedLatLng = L.latLng(snappedPoint.geometry.coordinates[1], snappedPoint.geometry.coordinates[0]);
+  const snappedLatLng = L.latLng(
+    snappedPoint.geometry.coordinates[1],
+    snappedPoint.geometry.coordinates[0]
+  );
 
-if (!startMarker) {
-  startMarker = L.marker(snappedLatLng, {
-    draggable: false,
-    icon: L.icon({
-      iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    })
-  }).addTo(map);
-} else if (!endMarker) {
-  endMarker = L.marker(snappedLatLng, {
-    draggable: false,
-    icon: L.icon({
-      iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    })
-  }).addTo(map);
+  if (!startMarker) {
+    startMarker = L.marker(snappedLatLng, {
+      draggable: false,
+      icon: L.icon({
+        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
+    }).addTo(map);
+  } else if (!endMarker) {
+    endMarker = L.marker(snappedLatLng, {
+      draggable: false,
+      icon: L.icon({
+        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
+    }).addTo(map);
 
-
-    // Snap the marker locations to the nearest point on a trail
+    // ✅ Use same filtered trails for snapping to graph nodes
     const snappedStart = turf.nearestPointOnLine(
-      turf.featureCollection(geojsonData.features),
+      turf.featureCollection(filteredFeatures),
       turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat])
     );
     const snappedEnd = turf.nearestPointOnLine(
-      turf.featureCollection(geojsonData.features),
+      turf.featureCollection(filteredFeatures),
       turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat])
     );
 
-    // Declare and assign BEFORE use
     const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
     const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
 
