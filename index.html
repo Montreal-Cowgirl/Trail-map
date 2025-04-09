@@ -386,101 +386,34 @@ const coords = path.map(k => {
 }
 
 
+      map.on('click', function(e) {
+        if (!startMarker) {
+          startMarker = L.marker(e.latlng).addTo(map);
+        } else if (!endMarker) {
+          endMarker = L.marker(e.latlng).addTo(map);
 
+          const snappedStart = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features.map(f => turf.lineString(f.geometry.coordinates))), turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat]));
+          const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features.map(f => turf.lineString(f.geometry.coordinates))), turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat]));
 
-map.on("click", e => {
-  console.log("Map clicked at", e.latlng);
+          let snappedStartCoords = [snappedStart.geometry.coordinates[1], snappedStart.geometry.coordinates[0]];
+          let snappedEndCoords = [snappedEnd.geometry.coordinates[1], snappedEnd.geometry.coordinates[0]];
 
-  const clickPoint = turf.point([e.latlng.lng, e.latlng.lat]);
-  const allowedKeywords = getAllowedSeasonKeywords(document.getElementById('season-select').value);
+          startMarker.setLatLng(snappedStartCoords);
+          endMarker.setLatLng(snappedEndCoords);
 
-  let minDist = Infinity;
-  let snappedPoint = null;
+          const startKey = addTemporaryNodeToGraph({ lat: snappedStartCoords[0], lng: snappedStartCoords[1] });
+          const endKey = addTemporaryNodeToGraph({ lat: snappedEndCoords[0], lng: snappedEndCoords[1] });
 
-  geojsonData.features.forEach(f => {
-    const name = f.properties.name || f.properties.NOM || "";
-    if (!hasSeasonKeyword(name, allowedKeywords)) return;
+          const path = findShortestPath(graph, startKey, endKey);
 
-    if (f.geometry.type === 'LineString') {
-      const line = turf.lineString(f.geometry.coordinates);
-      const candidate = turf.nearestPointOnLine(line, clickPoint, { units: 'kilometers' });
-      const dist = turf.pointToLineDistance(clickPoint, line, { units: 'kilometers' });
-
-      if (dist < minDist) {
-        minDist = dist;
-        snappedPoint = candidate;
-      }
-    }
-  });
-
-  if (!snappedPoint) {
-    alert("❌ No nearby trail segment found.");
-    return;
-  }
-
-  const snappedLatLng = L.latLng(snappedPoint.geometry.coordinates[1], snappedPoint.geometry.coordinates[0]);
-
-  if (!startMarker) {
-    startMarker = L.marker(snappedLatLng, {
-      draggable: true,
-      icon: L.icon({
-        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
-      })
-    }).addTo(map);
-  } else if (!endMarker) {
-    endMarker = L.marker(snappedLatLng, {
-      draggable: true,
-      icon: L.icon({
-        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
-      })
-    }).addTo(map);
-
-       const startKey = addTemporaryNodeToGraph({ lat: snappedStartCoords[0], lng: snappedStartCoords[1] });
-       const endKey = addTemporaryNodeToGraph({ lat: snappedEndCoords[0], lng: snappedEndCoords[1] });
-    
-    // Snap the marker locations to the nearest point on a trail
-    const snappedStart = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat]));
-    const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat]));
-
-
-// Get the snapped coordinates as [lng, lat] keys
-const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
-const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
-
-// Inject into graph if not already present
-if (!graph[startKey]) {
-  graph[startKey] = findNearestGraphConnections(snappedStartCoords);
-  nodeCoords[startKey] = snappedStartCoords;
-}
-if (!graph[endKey]) {
-  graph[endKey] = findNearestGraphConnections(snappedEndCoords);
-  nodeCoords[endKey] = snappedEndCoords;
-}
-
-    
-    const path = dijkstra(startKey, endKey);
-
-    if (path.length > 0) {
-      drawRoute(path);
-    } else {
-      alert("No path found.");
-      console.warn("No path found between", startKey, "and", endKey);
-    }
-  } else {
-    map.removeLayer(startMarker);
-    map.removeLayer(endMarker);
-    startMarker = null;
-    endMarker = null;
-    routeLayers.forEach(l => map.removeLayer(l));
-    routeLayers = [];
-    document.getElementById("distance").textContent = "-";
-    document.getElementById("time").textContent = "-";
-    document.getElementById("directions").innerHTML = "";
-  }
+          if (routeLine) map.removeLayer(routeLine);
+          routeLine = L.polyline(path.map(getLatLngFromKey), { color: 'red' }).addTo(map);
+        } else {
+          map.removeLayer(startMarker);
+          map.removeLayer(endMarker);
+          map.removeLayer(routeLine);
+          startMarker = endMarker = routeLine = null;
+        }
 });
 
 
