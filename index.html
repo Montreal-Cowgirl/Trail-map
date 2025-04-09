@@ -181,6 +181,57 @@ function findNearestNode(latlng) {
   return nearest;
 }
 
+
+function addTemporaryNodeToGraph(snappedPoint) {
+  const tempKey = coordKey([snappedPoint.lng, snappedPoint.lat]);
+  let closestSegment = null;
+  let minDist = Infinity;
+
+  // Find the closest segment in the GeoJSON trail data
+  geojsonData.features.forEach(f => {
+    if (f.geometry.type === "LineString") {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i];
+        const b = coords[i + 1];
+        const line = turf.lineString([a, b]);
+        const dist = turf.pointToLineDistance(turf.point([snappedPoint.lng, snappedPoint.lat]), line);
+        if (dist < minDist) {
+          minDist = dist;
+          closestSegment = { a, b };
+        }
+      }
+    }
+  });
+
+  if (closestSegment) {
+    const { a, b } = closestSegment;
+    const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
+    const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
+
+    // Add temporary edges from snapped point to a and b
+    const aKey = coordKey(a);
+    const bKey = coordKey(b);
+
+    graph[tempKey] = [];
+    graph[tempKey].push({ node: aKey, dist: distToA });
+    graph[tempKey].push({ node: bKey, dist: distToB });
+
+    // Also add edges in the reverse direction so Dijkstra can reach it
+    if (!graph[aKey]) graph[aKey] = [];
+    if (!graph[bKey]) graph[bKey] = [];
+
+    graph[aKey].push({ node: tempKey, dist: distToA });
+    graph[bKey].push({ node: tempKey, dist: distToB });
+
+    nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+  }
+
+  return tempKey;
+}
+
+
+  
 function dijkstra(startKey, endKey) {
   console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
@@ -324,8 +375,8 @@ map.on("click", e => {
       })
     }).addTo(map);
 
-    const startKey = findNearestNode(startMarker.getLatLng());
-    const endKey = findNearestNode(endMarker.getLatLng());
+    const startKey = addTemporaryNodeToGraph(startMarker.getLatLng());
+    const endKey = addTemporaryNodeToGraph(endMarker.getLatLng());
     const path = dijkstra(startKey, endKey);
 
     if (path.length > 0) {
