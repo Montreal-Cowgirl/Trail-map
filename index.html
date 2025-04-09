@@ -278,14 +278,14 @@ function addTemporaryNodeToGraph(snappedPoint) {
   return keySnapped;
 }
 
-  function injectPointIntoGraph(latlng, graph, nodeCoords) {
+  function injectPointIntoGraph(latlng, graph, nodeCoords, trailData) {
   const point = turf.point([latlng.lng, latlng.lat]);
 
   let minDist = Infinity;
   let closestSegment = null;
   let snappedCoord = null;
 
-  geojson.features.forEach(feature => {
+  trailData.features.forEach(feature => {
     if (feature.geometry.type === "LineString") {
       const line = turf.lineString(feature.geometry.coordinates);
       const snapped = turf.nearestPointOnLine(line, point);
@@ -340,6 +340,7 @@ function addTemporaryNodeToGraph(snappedPoint) {
   nodeCoords[key] = [snappedCoord[0], snappedCoord[1]];
   return key;
 }
+
 
   
 function dijkstra(startKey, endKey) {
