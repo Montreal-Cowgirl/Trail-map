@@ -139,6 +139,28 @@ function buildGraph() {
   console.log(`Graph built with ${included} connections and ${skipped} skipped features.`);
 }
 
+function displayFilteredTrails() {
+  const selectedSeason = document.getElementById("season-select").value;
+  const allowedKeywords = getAllowedSeasonKeywords(selectedSeason);
+
+  if (trailLayer) {
+    map.removeLayer(trailLayer);
+  }
+
+  const filteredFeatures = geojsonData.features.filter(f => {
+    const name = f.properties.name || f.properties.NOM || "";
+    if (selectedSeason === "all") return true;
+    return hasSeasonKeyword(name, allowedKeywords);
+  });
+
+  trailLayer = L.geoJSON(filteredFeatures, {
+    style: {
+      color: "#3388ff",
+      weight: 3
+    }
+  }).addTo(map);
+}
+
 
 function renderGeoJson(data, allowedKeywords) {
   if (window.trailsLayer) map.removeLayer(window.trailsLayer);
@@ -538,13 +560,20 @@ fetch('map.geojson')
   .then(data => {
     geojsonData = data;
     const dropdown = document.getElementById('season-select');
+    
+    // ✅ When season is changed
     dropdown.addEventListener('change', () => {
-      console.log("Season dropdown changed to:", dropdown.value);
-      buildGraph(geojsonData, dropdown.value);
-    });
+    console.log("Season dropdown changed to:", dropdown.value);
+    displayFilteredTrails();                   // ✅ Show the correct trails
+    buildGraph(geojsonData, dropdown.value);   // ✅ Rebuild the route graph
+  });
+
+     // ✅ On initial load
+    displayFilteredTrails();
     buildGraph(data, dropdown.value);
-  })
-  .catch(err => console.error("Failed to load map data:", err));
+})
+.catch(err => console.error("Failed to load map data:", err));
+  
 </script>
 
 </body>
