@@ -185,10 +185,10 @@ function dijkstra(startKey, endKey) {
   console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
   dist[startKey] = 0;
+  let iterations = 0, maxIterations = 50000;
 
-  while (true) {
-    let u = null;
-    let minDist = Infinity;
+  while (iterations++ < maxIterations) {
+    let u = null, minDist = Infinity;
     for (let node in dist) {
       if (!visited.has(node) && dist[node] < minDist) {
         minDist = dist[node];
@@ -207,12 +207,22 @@ function dijkstra(startKey, endKey) {
     }
   }
 
+  if (iterations >= maxIterations) {
+    console.warn("Dijkstra aborted: too many iterations");
+    return [];
+  }
+
   const path = [];
   let u = endKey;
   while (u) {
     path.unshift(u);
     u = prev[u];
   }
+  if (path[0] !== startKey) {
+    console.warn("No path could be reconstructed between", startKey, "and", endKey);
+    return [];
+  }
+
   console.log("Dijkstra path:", path);
   return path;
 }
