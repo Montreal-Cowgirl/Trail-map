@@ -504,6 +504,30 @@ map.on("click", e => {
 
     const startKey = injectPointIntoGraph(startMarker.getLatLng(), graph, nodeCoords);
     const endKey = injectPointIntoGraph(endMarker.getLatLng(), graph, nodeCoords);
+    
+    // Snap the marker locations to the nearest point on a trail
+const snappedStart = turf.nearestPointOnLine(trailsGeoJSON, startMarker.getLatLng());
+const snappedEnd = turf.nearestPointOnLine(trailsGeoJSON, endMarker.getLatLng());
+
+// Get the snapped coordinates as [lng, lat] keys
+const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
+const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
+
+// Convert to keys for the graph
+const startKey = `${snappedStartCoords[0].toFixed(5)},${snappedStartCoords[1].toFixed(5)}`;
+const endKey = `${snappedEndCoords[0].toFixed(5)},${snappedEndCoords[1].toFixed(5)}`;
+
+// Inject into graph if not already present
+if (!graph[startKey]) {
+  graph[startKey] = findNearestGraphConnections(snappedStartCoords);
+  nodeCoords[startKey] = snappedStartCoords;
+}
+if (!graph[endKey]) {
+  graph[endKey] = findNearestGraphConnections(snappedEndCoords);
+  nodeCoords[endKey] = snappedEndCoords;
+}
+
+    
     const path = dijkstra(startKey, endKey);
 
     if (path.length > 0) {
