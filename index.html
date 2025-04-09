@@ -251,11 +251,12 @@ function drawRoute(path) {
   routeLayers = [];
 
   const coords = path.map(k => nodeCoords[k]);
-  const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
-  routeLayers.push(line);
+  const line = L.polyline(coords, { color: 'orange', weight: 4 });
 
-  // Fit map to the route
-  map.fitBounds(line.getBounds());
+  routeLayers.push(line);
+  line.addTo(map); // Add the route layer without modifying the view
+
+  // Don't use: map.fitBounds(line.getBounds()); ← Make sure this line doesn't exist
 
   const totalDist = coords.reduce((sum, _, i) => {
     if (i === 0) return 0;
@@ -264,9 +265,8 @@ function drawRoute(path) {
 
   document.getElementById("distance").textContent = totalDist.toFixed(2);
   document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
-
-  generateDirections(path);
 }
+
 
 
 map.on("click", e => {
