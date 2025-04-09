@@ -255,21 +255,25 @@ function addTemporaryNodeToGraph(snappedPoint) {
     const { a, b, aKey, bKey } = closestSegment;
     const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
     const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
-
+  
     graph[tempKey] = [
       { node: aKey, dist: distToA },
       { node: bKey, dist: distToB }
     ];
-
-    // Reverse connections
+  
+    if (!graph[aKey]) graph[aKey] = [];
+    if (!graph[bKey]) graph[bKey] = [];
+  
     graph[aKey].push({ node: tempKey, dist: distToA });
     graph[bKey].push({ node: tempKey, dist: distToB });
-
-    // Store the actual coordinates
+  
     nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+  
+    console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
   } else {
-    console.warn("❌ No nearby segment found in graph to snap to.");
+    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${snappedPoint.lng},${snappedPoint.lat}`);
   }
+
 
   return tempKey;
 }
@@ -326,6 +330,10 @@ function addTemporaryNodeToGraph(snappedPoint) {
 
 
 function dijkstra(startKey, endKey) {
+  // Debug: Log graph connectivity of start and end
+  console.log("📌 Checking graph connectivity for start and end:");
+  console.log(`StartKey: ${startKey}, Exists: ${graph[startKey] !== undefined}, Connections:`, graph[startKey]);
+  console.log(`EndKey: ${endKey}, Exists: ${graph[endKey] !== undefined}, Connections:`, graph[endKey]);
   console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
   dist[startKey] = 0;
