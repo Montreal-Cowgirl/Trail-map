@@ -231,6 +231,53 @@ function addTemporaryNodeToGraph(snappedPoint) {
 }
 
 
+  function addSnappedPointToGraph(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
+  let minDist = Infinity;
+  let snappedCoord = null;
+  let segmentEnds = [];
+
+  geojsonData.features.forEach(f => {
+    if (f.geometry.type === "LineString") {
+      const line = turf.lineString(f.geometry.coordinates);
+      const snapped = turf.nearestPointOnLine(line, pt);
+      if (snapped.properties.dist < minDist) {
+        minDist = snapped.properties.dist;
+        snappedCoord = snapped.geometry.coordinates;
+
+        const segIndex = snapped.properties.index;
+        const coords = f.geometry.coordinates;
+
+        if (segIndex < coords.length - 1) {
+          segmentEnds = [coords[segIndex], coords[segIndex + 1]];
+        }
+      }
+    }
+  });
+
+  if (!snappedCoord || segmentEnds.length !== 2) {
+    console.warn("Snapping failed.");
+    return null;
+  }
+
+  const keySnapped = coordKey(snappedCoord);
+  nodeCoords[keySnapped] = snappedCoord;
+
+  const [a, b] = segmentEnds;
+  const keyA = coordKey(a);
+  const keyB = coordKey(b);
+
+  // Add bidirectional edges to the graph
+  const distA = turf.distance(turf.point(a), turf.point(snappedCoord));
+  const distB = turf.distance(turf.point(b), turf.point(snappedCoord));
+  addEdge(keyA, keySnapped, distA);
+  addEdge(keySnapped, keyA, distA);
+  addEdge(keyB, keySnapped, distB);
+  addEdge(keySnapped, keyB, distB);
+
+  return keySnapped;
+}
+  
   
 function dijkstra(startKey, endKey) {
   console.log("Running Dijkstra from", startKey, "to", endKey);
@@ -392,8 +439,8 @@ map.on("click", e => {
       })
     }).addTo(map);
 
-    const startKey = addTemporaryNodeToGraph(startMarker.getLatLng());
-    const endKey = addTemporaryNodeToGraph(endMarker.getLatLng());
+    const startKey = addSnappedPointToGraph(startMarker.getLatLng());
+    const endKey = addSnappedPointToGraph(endMarker.getLatLng());
     const path = dijkstra(startKey, endKey);
 
     if (path.length > 0) {
