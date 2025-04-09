@@ -302,16 +302,15 @@ function drawRoute(path) {
   routeLayers = [];
 
   const coords = path.map(k => nodeCoords[k]);
-  const line = L.polyline(coords, { color: 'orange', weight: 4, pane: 'overlayPane' });
+  console.log("Route coordinates:", coords);
+
+  if (coords.length < 2) {
+    console.warn("Not enough coordinates to draw a line.");
+    return;
+  }
+
+  const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
   routeLayers.push(line);
-  map.getPane('overlayPane').appendChild(line._path); // add to map without triggering pan/zoom
-  line.addTo(map);
-
-
-  routeLayers.push(line);
-  line.addTo(map); // Add the route layer without modifying the view
-
-  // Don't use: map.fitBounds(line.getBounds()); ← Make sure this line doesn't exist
 
   const totalDist = coords.reduce((sum, _, i) => {
     if (i === 0) return 0;
@@ -321,6 +320,7 @@ function drawRoute(path) {
   document.getElementById("distance").textContent = totalDist.toFixed(2);
   document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
 }
+
 
 
 
