@@ -254,6 +254,9 @@ function drawRoute(path) {
   const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
   routeLayers.push(line);
 
+  // Fit map to the route
+  map.fitBounds(line.getBounds());
+
   const totalDist = coords.reduce((sum, _, i) => {
     if (i === 0) return 0;
     return sum + turf.distance(turf.point(coords[i - 1]), turf.point(coords[i]));
@@ -264,6 +267,7 @@ function drawRoute(path) {
 
   generateDirections(path);
 }
+
 
 map.on("click", e => {
   console.log("Map clicked at", e.latlng);
