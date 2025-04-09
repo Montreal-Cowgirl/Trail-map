@@ -276,15 +276,21 @@ function drawRoute(path) {
 map.on("click", e => {
   console.log("Map clicked at", e.latlng);
   if (!startMarker) {
-    startMarker = L.marker(e.latlng, {
-      draggable: true,
-      icon: L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png' })
-    }).addTo(map);
+  const nearestStartKey = findNearestNode(e.latlng);
+  const snappedStartLatLng = L.latLng(nodeCoords[nearestStartKey][1], nodeCoords[nearestStartKey][0]);
+  startMarker = L.marker(snappedStartLatLng, {
+    draggable: true,
+    icon: L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png' })
+  }).addTo(map);
+
   } else if (!endMarker) {
-    endMarker = L.marker(e.latlng, {
+    const nearestEndKey = findNearestNode(e.latlng);
+    const snappedEndLatLng = L.latLng(nodeCoords[nearestEndKey][1], nodeCoords[nearestEndKey][0]);
+    endMarker = L.marker(snappedEndLatLng, {
       draggable: true,
       icon: L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png' })
     }).addTo(map);
+
 
     const startKey = findNearestNode(startMarker.getLatLng());
     const endKey = findNearestNode(endMarker.getLatLng());
