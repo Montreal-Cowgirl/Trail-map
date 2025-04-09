@@ -231,14 +231,24 @@ map.on("click", e => {
     startMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("Start").openPopup();
   } else if (!endMarker) {
     endMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("End").openPopup();
-    const startKey = findNearestNode(startMarker.getLatLng());
-    const endKey = findNearestNode(endMarker.getLatLng());
-    const path = dijkstra(startKey, endKey);
-    if (path.length > 0) {
-      drawRoute(path);
-    } else {
-      alert("No path found.");
-    }
+const startKey = findNearestNode(startMarker.getLatLng());
+const endKey = findNearestNode(endMarker.getLatLng());
+
+if (!startKey || !endKey) {
+  alert("Start or End point is too far from any trail. Please select a location closer to a trail.");
+  console.warn("Invalid node(s):", { startKey, endKey });
+  return;
+}
+
+const path = dijkstra(startKey, endKey);
+
+if (path.length > 1) {
+  drawRoute(path);
+} else {
+  alert("No path found between selected points.");
+  console.warn("Dijkstra returned empty or single-point path.", { startKey, endKey, path });
+}
+
   } else {
     map.removeLayer(startMarker);
     map.removeLayer(endMarker);
