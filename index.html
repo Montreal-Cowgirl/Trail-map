@@ -418,14 +418,25 @@ map.on("click", e => {
 
   const snappedLatLng = L.latLng(snappedPoint.geometry.coordinates[1], snappedPoint.geometry.coordinates[0]);
 
-  if (!startMarker) {
-    startMarker = L.marker(snappedLatLng, {
-      draggable: true
-    }).addTo(map);
-  } else if (!endMarker) {
-    endMarker = L.marker(snappedLatLng, {
-      draggable: true
-    }).addTo(map);
+if (!startMarker) {
+  startMarker = L.marker(snappedLatLng, {
+    draggable: false,
+    icon: L.icon({
+      iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    })
+  }).addTo(map);
+} else if (!endMarker) {
+  endMarker = L.marker(snappedLatLng, {
+    draggable: false,
+    icon: L.icon({
+      iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    })
+  }).addTo(map);
+
 
     // Snap the marker locations to the nearest point on a trail
     const snappedStart = turf.nearestPointOnLine(
