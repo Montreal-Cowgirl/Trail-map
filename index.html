@@ -168,7 +168,7 @@ function renderGeoJson(data, allowedKeywords) {
   window.trailsLayer = L.geoJSON(data, {
     filter: f => {
       const name = f.properties.name || f.properties.NOM || "";
-      return true;
+      return hasSeasonKeyword(name, allowedKeywords);
     },
     style: { color: 'blue', weight: 3 }
   }).addTo(map);
@@ -458,7 +458,7 @@ map.on("click", e => {
   // Step 1: Filter features by season and snap click to nearest trail
   const filteredFeatures = geojsonData.features.filter(f => {
     const name = f.properties.name || f.properties.NOM || "";
-    return true;
+    return hasSeasonKeyword(name, allowedKeywords);
   });
 
   filteredFeatures.forEach(f => {
