@@ -46,6 +46,8 @@
 </div>
 
 <script>
+let trailLayer = null;
+let trailLayerGroup = null;
 let graph = {}, nodeCoords = {}, geojsonData;
 const map = L.map('map').setView([46.8, -71.2], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -140,8 +142,7 @@ function buildGraph() {
 }
 
 function displayFilteredTrails() {
-  let trailLayerGroup = null;
-  // Remove old trail layers from the map
+  // Remove old trail layer if it exists
   if (trailLayerGroup) {
     map.removeLayer(trailLayerGroup);
   }
@@ -150,7 +151,7 @@ function displayFilteredTrails() {
 
   const visibleFeatures = geojsonData.features.filter(f => {
     const name = f.properties.name || f.properties.NOM || "";
-    return true;
+    return hasSeasonKeyword(name, allowedKeywords); // ✅ Apply filtering here
   });
 
   trailLayerGroup = L.geoJSON({ type: 'FeatureCollection', features: visibleFeatures }, {
@@ -160,7 +161,6 @@ function displayFilteredTrails() {
     }
   }).addTo(map);
 }
-
 
 
 function renderGeoJson(data, allowedKeywords) {
