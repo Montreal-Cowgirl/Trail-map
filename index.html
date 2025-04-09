@@ -251,7 +251,11 @@ function drawRoute(path) {
   routeLayers = [];
 
   const coords = path.map(k => nodeCoords[k]);
-  const line = L.polyline(coords, { color: 'orange', weight: 4 });
+  const line = L.polyline(coords, { color: 'orange', weight: 4, pane: 'overlayPane' });
+  routeLayers.push(line);
+  map.getPane('overlayPane').appendChild(line._path); // add to map without triggering pan/zoom
+  line.addTo(map);
+
 
   routeLayers.push(line);
   line.addTo(map); // Add the route layer without modifying the view
