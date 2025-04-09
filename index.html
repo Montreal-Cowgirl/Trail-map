@@ -182,8 +182,8 @@ function findNearestNode(latlng) {
 }
 
 
-function addTemporaryNodeToGraph(snappedPoint) {
-  const tempKey = coordKey([snappedPoint.lng, snappedPoint.lat]);
+function addTemporaryNodeToGraph({ lat, lng }) {
+  const tempKey = `${lng.toFixed(5)},${lat.toFixed(5)}`;
   let closestSegment = null;
   let minDist = Infinity;
 
@@ -192,10 +192,12 @@ function addTemporaryNodeToGraph(snappedPoint) {
     if (f.geometry.type === "LineString") {
       const coords = f.geometry.coordinates;
       for (let i = 0; i < coords.length - 1; i++) {
-        const a = coords[i];
+        const a = coords[i]; // [lng, lat]
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
-        const dist = turf.pointToLineDistance(turf.point([snappedPoint.lng, snappedPoint.lat]), line, { units: 'kilometers' });
+
+        const dist = turf.pointToLineDistance(turf.point([lng, lat]), line, { units: 'kilometers' });
+
         if (dist < minDist) {
           minDist = dist;
           closestSegment = { a, b };
@@ -206,29 +208,33 @@ function addTemporaryNodeToGraph(snappedPoint) {
 
   if (closestSegment) {
     const { a, b } = closestSegment;
-    const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
-    const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
 
-    // Add temporary edges from snapped point to a and b
-    const aKey = coordKey(a);
-    const bKey = coordKey(b);
+    const distToA = turf.distance(turf.point(a), turf.point([lng, lat]), { units: 'kilometers' });
+    const distToB = turf.distance(turf.point(b), turf.point([lng, lat]), { units: 'kilometers' });
 
-    graph[tempKey] = [];
-    graph[tempKey].push({ node: aKey, dist: distToA });
-    graph[tempKey].push({ node: bKey, dist: distToB });
+    const aKey = `${a[0].toFixed(5)},${a[1].toFixed(5)}`;
+    const bKey = `${b[0].toFixed(5)},${b[1].toFixed(5)}`;
 
-    // Also add edges in the reverse direction so Dijkstra can reach it
+    // Add connections from the temp node to existing segment ends
+    graph[tempKey] = [
+      { node: aKey, dist: distToA },
+      { node: bKey, dist: distToB }
+    ];
+
+    // Add reverse connections to temp node
     if (!graph[aKey]) graph[aKey] = [];
     if (!graph[bKey]) graph[bKey] = [];
 
     graph[aKey].push({ node: tempKey, dist: distToA });
     graph[bKey].push({ node: tempKey, dist: distToB });
 
-    nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+    // ✅ Store snapped coordinate in nodeCoords in [lng, lat] format
+    nodeCoords[tempKey] = [lng, lat];
   }
 
   return tempKey;
 }
+
 
 
   function addSnappedPointToGraph(latlng) {
