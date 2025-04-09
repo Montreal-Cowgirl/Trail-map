@@ -140,20 +140,20 @@ function buildGraph() {
 }
 
 function displayFilteredTrails() {
-  const selectedSeason = document.getElementById("season-select").value;
-  const allowedKeywords = getAllowedSeasonKeywords(selectedSeason);
-
-  if (trailLayer) {
-    map.removeLayer(trailLayer);
+  let trailLayerGroup = null;
+  // Remove old trail layers from the map
+  if (trailLayerGroup) {
+    map.removeLayer(trailLayerGroup);
   }
 
-  const filteredFeatures = geojsonData.features.filter(f => {
+  const allowedKeywords = getAllowedSeasonKeywords(document.getElementById('season-select').value);
+
+  const visibleFeatures = geojsonData.features.filter(f => {
     const name = f.properties.name || f.properties.NOM || "";
-    if (selectedSeason === "all") return true;
-    return hasSeasonKeyword(name, allowedKeywords);
+    return true;
   });
 
-  trailLayer = L.geoJSON(filteredFeatures, {
+  trailLayerGroup = L.geoJSON({ type: 'FeatureCollection', features: visibleFeatures }, {
     style: {
       color: "#3388ff",
       weight: 3
@@ -162,12 +162,13 @@ function displayFilteredTrails() {
 }
 
 
+
 function renderGeoJson(data, allowedKeywords) {
   if (window.trailsLayer) map.removeLayer(window.trailsLayer);
   window.trailsLayer = L.geoJSON(data, {
     filter: f => {
       const name = f.properties.name || f.properties.NOM || "";
-      return hasSeasonKeyword(name, allowedKeywords);
+      return true;
     },
     style: { color: 'blue', weight: 3 }
   }).addTo(map);
@@ -457,7 +458,7 @@ map.on("click", e => {
   // Step 1: Filter features by season and snap click to nearest trail
   const filteredFeatures = geojsonData.features.filter(f => {
     const name = f.properties.name || f.properties.NOM || "";
-    return hasSeasonKeyword(name, allowedKeywords);
+    return true;
   });
 
   filteredFeatures.forEach(f => {
