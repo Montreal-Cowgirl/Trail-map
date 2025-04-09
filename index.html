@@ -93,50 +93,67 @@ function hasSeasonKeyword(name, allowedKeywords) {
   return allowedKeywords.some(kw => normName.includes(normalize(kw)));
 }
 
-function buildGraph(data, mode = "auto") {
-  console.log("Building graph for season mode:", mode);
-  const allowedKeywords = getAllowedSeasonKeywords(mode);
-
+function buildGraph(data, seasonMode = "auto") {
+  console.log("🔧 Building graph for season mode:", seasonMode);
   graph = {};
-  nodeCoords = {};
-  let skipped = 0;
-  let connections = 0;
 
-  data.features.forEach(f => {
-    const name = f.properties.name || f.properties.NOM || "";
-    
-    // 🛠️ Only skip if filtering is needed
-    if (allowedKeywords && !hasSeasonKeyword(name, allowedKeywords)) {
+  const allowedKeywords = getAllowedSeasonKeywords(seasonMode);
+  let skipped = 0;
+  let endpoints = [];
+
+  data.features.forEach(feature => {
+    const name = feature.properties.name || feature.properties.NOM || "";
+    if (!hasSeasonKeyword(name, allowedKeywords)) {
       skipped++;
       return;
     }
 
-    if (f.geometry.type === "LineString") {
-      const coords = f.geometry.coordinates;
+    const coords = feature.geometry.coordinates;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i], b = coords[i + 1];
+      const dist = turf.distance(turf.point(a), turf.point(b));
 
-      for (let i = 0; i < coords.length - 1; i++) {
-        const a = coords[i];
-        const b = coords[i + 1];
-        const aKey = coordKey(a);
-        const bKey = coordKey(b);
+      const keyA = a.join(","), keyB = b.join(",");
+      if (!graph[keyA]) graph[keyA] = [];
+      if (!graph[keyB]) graph[keyB] = [];
 
-        const dist = turf.distance(turf.point(a), turf.point(b));
+      graph[keyA].push({ node: keyB, dist });
+      graph[keyB].push({ node: keyA, dist });
+    }
 
-        if (!graph[aKey]) graph[aKey] = [];
-        if (!graph[bKey]) graph[bKey] = [];
-
-        graph[aKey].push({ node: bKey, dist });
-        graph[bKey].push({ node: aKey, dist });
-
-        nodeCoords[aKey] = a;
-        nodeCoords[bKey] = b;
-        connections++;
-      }
+    // Collect start and end points for connectivity fix
+    if (coords.length >= 2) {
+      endpoints.push(turf.point(coords[0]));
+      endpoints.push(turf.point(coords[coords.length - 1]));
     }
   });
 
-  console.log(`Graph built with ${connections} connections and ${skipped} skipped features.`);
+  // Fix: Ensure endpoints are connected if close enough
+  const endpointPairs = turf.featureCollection(endpoints);
+  for (let i = 0; i < endpoints.length; i++) {
+    for (let j = i + 1; j < endpoints.length; j++) {
+      const ptA = endpoints[i], ptB = endpoints[j];
+      const d = turf.distance(ptA, ptB, { units: 'kilometers' });
+
+      if (d < 0.01) { // ~10 meters
+        const keyA = ptA.geometry.coordinates.join(",");
+        const keyB = ptB.geometry.coordinates.join(",");
+
+        if (keyA !== keyB) {
+          const dist = d;
+          if (!graph[keyA]) graph[keyA] = [];
+          if (!graph[keyB]) graph[keyB] = [];
+
+          graph[keyA].push({ node: keyB, dist });
+          graph[keyB].push({ node: keyA, dist });
+        }
+      }
+    }
+  }
+
+  console.log(`✅ Graph built with ${Object.keys(graph).length} connections and ${skipped} skipped features.`);
 }
+
 
 
 function displayFilteredTrails() {
