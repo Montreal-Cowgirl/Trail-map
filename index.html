@@ -93,23 +93,20 @@ function hasSeasonKeyword(name, allowedKeywords) {
   return allowedKeywords.some(kw => normName.includes(normalize(kw)));
 }
 
-function buildGraph() {
-  const selectedSeason = document.getElementById("season-select").value;
-  const allowedKeywords = getAllowedSeasonKeywords(selectedSeason);
-
-  console.log("Building graph for season mode:", selectedSeason);
+function buildGraph(data, mode = "auto") {
+  console.log("Building graph for season mode:", mode);
+  const allowedKeywords = getAllowedSeasonKeywords(mode);
 
   graph = {};
   nodeCoords = {};
-
   let skipped = 0;
-  let included = 0;
+  let connections = 0;
 
-  geojsonData.features.forEach(f => {
+  data.features.forEach(f => {
     const name = f.properties.name || f.properties.NOM || "";
     
-    // Skip segments not allowed by the current filter
-    if (selectedSeason !== "all" && !hasSeasonKeyword(name, allowedKeywords)) {
+    // 🛠️ Only skip if filtering is needed
+    if (allowedKeywords && !hasSeasonKeyword(name, allowedKeywords)) {
       skipped++;
       return;
     }
@@ -123,7 +120,7 @@ function buildGraph() {
         const aKey = coordKey(a);
         const bKey = coordKey(b);
 
-        const dist = turf.distance(turf.point(a), turf.point(b), { units: 'kilometers' });
+        const dist = turf.distance(turf.point(a), turf.point(b));
 
         if (!graph[aKey]) graph[aKey] = [];
         if (!graph[bKey]) graph[bKey] = [];
@@ -133,13 +130,14 @@ function buildGraph() {
 
         nodeCoords[aKey] = a;
         nodeCoords[bKey] = b;
-        included++;
+        connections++;
       }
     }
   });
 
-  console.log(`Graph built with ${included} connections and ${skipped} skipped features.`);
+  console.log(`Graph built with ${connections} connections and ${skipped} skipped features.`);
 }
+
 
 function displayFilteredTrails() {
   // Remove old trail layer if it exists
