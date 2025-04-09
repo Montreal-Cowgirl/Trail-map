@@ -22,12 +22,22 @@
     .route-option:hover {
       background: #d0d0d0;
     }
+    #season-select {
+      margin: 1rem 0;
+    }
   </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="info">
+  <label for="season-select"><strong>Trail Filter:</strong></label>
+  <select id="season-select">
+    <option value="auto">Auto (Based on Date)</option>
+    <option value="summer">Summer Mode</option>
+    <option value="winter">Winter Mode</option>
+    <option value="all">All Trails</option>
+  </select><br/>
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
@@ -36,28 +46,55 @@
 </div>
 
 <script>
-let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-let trailData, graph = {}, nodeCoords = {};
-let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-let previewLines = [], routeLine;
-
-function coordKey(coord) {
-  return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
-}
+let graph = {}, nodeCoords = {}, geojsonData;
+const map = L.map('map').setView([46.8, -71.2], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 function addEdge(a, b, dist) {
   if (!graph[a]) graph[a] = [];
   graph[a].push({ node: b, dist });
 }
 
-function buildGraph(data) {
+function coordKey(coord) {
+  return coord[0].toFixed(5) + "," + coord[1].toFixed(5);
+}
+
+function getAllowedSeasonKeywords(mode = "auto") {
+  if (mode === "all") return null;
+  const keywords = ["saison"];
+  if (mode === "summer") {
+    keywords.push("été");
+  } else if (mode === "winter") {
+    keywords.push("hiver");
+  } else {
+    const now = new Date();
+    const month = now.getMonth();
+    const date = now.getDate();
+    const isWinter = (month === 11 && date >= 21) || (month <= 2) || (month === 3 && date <= 30);
+    keywords.push(isWinter ? "hiver" : "été");
+  }
+  return keywords;
+}
+
+function normalize(str) {
+  return str.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+function hasSeasonKeyword(name, allowedKeywords) {
+  if (!allowedKeywords) return true;
+  const normName = normalize(name || "");
+  return allowedKeywords.some(kw => normName.includes(normalize(kw)));
+}
+
+function buildGraph(data, seasonMode) {
+  graph = {}; nodeCoords = {};
+  const allowedKeywords = getAllowedSeasonKeywords(seasonMode);
+
   data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
+      const name = f.properties.name || f.properties.NOM || "";
+      if (!hasSeasonKeyword(name, allowedKeywords)) return;
+
       const coords = f.geometry.coordinates;
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coordKey(coords[i]);
@@ -70,209 +107,21 @@ function buildGraph(data) {
       }
     }
   });
+  console.log(`Graph built for mode: ${seasonMode}`, graph);
+  renderGeoJson(data, allowedKeywords);
 }
 
-function connectNearbySegments(data, threshold = 25) {
-  const lineSegments = [];
-  data.features.forEach(f => {
-    if (f.geometry.type === 'LineString') {
-      const coords = f.geometry.coordinates;
-      for (let i = 0; i < coords.length - 1; i++) {
-        lineSegments.push([coords[i], coords[i + 1]]);
-      }
-    }
-  });
-
-  for (let i = 0; i < lineSegments.length; i++) {
-    for (let j = i + 1; j < lineSegments.length; j++) {
-      const mid1 = turf.midpoint(...lineSegments[i]);
-      const mid2 = turf.midpoint(...lineSegments[j]);
-      const dist = turf.distance(mid1, mid2, { units: 'meters' });
-
-      if (dist <= threshold) {
-        const pt1 = turf.nearestPointOnLine(turf.lineString(lineSegments[j]), mid1);
-        const pt2 = turf.nearestPointOnLine(turf.lineString(lineSegments[i]), mid2);
-        const a = coordKey(pt1.geometry.coordinates);
-        const b = coordKey(pt2.geometry.coordinates);
-        const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
-
-        nodeCoords[a] = pt1.geometry.coordinates;
-        nodeCoords[b] = pt2.geometry.coordinates;
-        addEdge(a, b, distBetween);
-        addEdge(b, a, distBetween);
-      }
-    }
-  }
+function renderGeoJson(data, allowedKeywords) {
+  if (window.trailsLayer) map.removeLayer(window.trailsLayer);
+  window.trailsLayer = L.geoJSON(data, {
+    filter: f => {
+      const name = f.properties.name || f.properties.NOM || "";
+      return hasSeasonKeyword(name, allowedKeywords);
+    },
+    style: { color: 'blue', weight: 3 }
+  }).addTo(map);
 }
 
-function findClosestNode(latLng) {
-  let minDist = Infinity, closestNode = null, threshold = 100;
-  Object.keys(nodeCoords).forEach(key => {
-    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
-    const dist = latLng.distanceTo(nodeLatLng);
-    if (dist < minDist && dist <= threshold) {
-      minDist = dist;
-      closestNode = key;
-    }
-  });
-  return closestNode;
-}
-
-fetch('map.geojson')
-  .then(res => res.json())
-  .then(data => {
-    trailData = data;
-    L.geoJSON(data, { color: 'blue' }).addTo(map);
-    buildGraph(data);
-    connectNearbySegments(data, 25);
-  });
-
-map.on('click', function (e) {
-  const snapped = findClosestNode(e.latlng);
-  if (!snapped) return alert("No nearby trail found.");
-  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
-
-  const greenIcon = new L.Icon.Default();
-  const redIcon = new L.Icon.Default();
-
-  if (clickCount === 0) {
-    if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
-    startNode = snapped;
-    clickCount++;
-  } else {
-    if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
-    endNode = snapped;
-    clickCount = 0;
-    const routes = findMultipleRoutes(startNode, endNode, 3);
-    if (!routes || routes.length === 0) return alert("No path found.");
-    renderRouteOptions(routes);
-  }
-});
-
-// Improved: prevent early detours from initial route
-function findMultipleRoutes(start, end, numRoutes = 3) {
-  const allPaths = [], visitedPaths = new Set();
-
-  function dijkstra(blockedEdges = [], lockedPrefix = []) {
-    const distances = {}, previous = {}, pq = new Set(Object.keys(graph));
-    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-    Object.keys(graph).forEach(n => distances[n] = Infinity);
-    distances[start] = 0;
-
-    while (pq.size) {
-      const current = [...pq].reduce((a, b) => distances[a] < distances[b] ? a : b);
-      if (current === end) break;
-      pq.delete(current);
-      for (const neighbor of graph[current] || []) {
-        const edge = `${current}->${neighbor.node}`;
-        if (blockedSet.has(edge)) continue;
-        const alt = distances[current] + neighbor.dist;
-        if (alt < distances[neighbor.node]) {
-          distances[neighbor.node] = alt;
-          previous[neighbor.node] = current;
-        }
-      }
-    }
-
-    const path = [];
-    let curr = end;
-    while (previous[curr]) {
-      path.unshift(curr);
-      curr = previous[curr];
-    }
-    if (curr === start) {
-      path.unshift(start);
-      // Prevent jumps within the first 3 nodes
-      for (let i = 0; i < lockedPrefix.length; i++) {
-        if (path[i] !== lockedPrefix[i]) return [];
-      }
-      return path;
-    }
-    return [];
-  }
-
-  const firstPath = dijkstra();
-  if (!firstPath.length) return allPaths;
-  allPaths.push(firstPath);
-  visitedPaths.add(firstPath.join('->'));
-
-  const lockedPrefix = firstPath.slice(0, 3); // lock early path
-
-  for (let i = 1; i < firstPath.length - 1 && allPaths.length < numRoutes; i++) {
-    const blocked = [[firstPath[i], firstPath[i + 1]]];
-    const newPath = dijkstra(blocked, lockedPrefix);
-    const key = newPath.join('->');
-    if (newPath.length && !visitedPaths.has(key)) {
-      allPaths.push(newPath);
-      visitedPaths.add(key);
-    }
-  }
-
-  return allPaths;
-}
-
-function renderRouteOptions(routes) {
-  const routeOptionsDiv = document.getElementById('route-options');
-  routeOptionsDiv.innerHTML = '';
-  previewLines.forEach(line => map.removeLayer(line));
-  previewLines = [];
-
-  const colors = ['orange', 'purple', 'hotpink'];
-  routes.forEach((route, i) => {
-    const coords = route.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
-    const dist = route.reduce((sum, node, j) => {
-      if (j < route.length - 1) {
-        return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[route[j + 1]]));
-      }
-      return sum;
-    }, 0);
-
-    const line = L.polyline(coords, { color: colors[i % colors.length], weight: 4, dashArray: '5,5' }).addTo(map);
-    previewLines.push(line);
-
-    const div = document.createElement('div');
-    div.className = 'route-option';
-    div.textContent = `Route ${i + 1}: ${dist.toFixed(2)} km`;
-    div.onclick = () => {
-      previewLines.forEach(l => map.removeLayer(l));
-      renderRoute(route);
-      renderDirections(route);
-    };
-    routeOptionsDiv.appendChild(div);
-  });
-}
-
-function renderRoute(path) {
-  const coords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
-  if (routeLine) map.removeLayer(routeLine);
-  routeLine = L.polyline(coords, { color: 'green', weight: 5 }).addTo(map);
-}
-
-function renderDirections(path) {
-  const list = document.getElementById('directions');
-  list.innerHTML = '';
-  const instructions = generateDirections(path);
-
-  instructions.forEach(text => {
-    const li = document.createElement('li');
-    li.textContent = text;
-    list.appendChild(li);
-  });
-
-  const total = path.reduce((sum, node, i) => {
-    if (i < path.length - 1) {
-      return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[path[i + 1]]));
-    }
-    return sum;
-  }, 0);
-
-  document.getElementById('distance').textContent = total.toFixed(2);
-  document.getElementById('time').textContent = Math.round(total * 12); // assume 5 km/h
-}
-
-// 🚀 Improved user-friendly direction generation
 function generateDirections(path) {
   const instructions = [];
   for (let i = 1; i < path.length - 1; i++) {
@@ -293,12 +142,31 @@ function generateDirections(path) {
       const turn = angle2 > angle1 ? "right" : "left";
       const segmentDistance = turf.distance(curr, next, { units: 'kilometers' });
       const roundedDistance = (segmentDistance * 1000).toFixed(0);
-
       instructions.push(`In ${roundedDistance} meters, turn ${turn}`);
     }
   }
+  const dirList = document.getElementById("directions");
+  dirList.innerHTML = "";
+  instructions.forEach(txt => {
+    const li = document.createElement("li");
+    li.textContent = txt;
+    dirList.appendChild(li);
+  });
   return instructions;
 }
+
+fetch('map.geojson')
+  .then(res => res.json())
+  .then(data => {
+    geojsonData = data;
+    const dropdown = document.getElementById('season-select');
+    dropdown.addEventListener('change', () => {
+      buildGraph(geojsonData, dropdown.value);
+    });
+    buildGraph(data, dropdown.value);
+  })
+  .catch(err => console.error("Failed to load map data:", err));
 </script>
+
 </body>
 </html>
