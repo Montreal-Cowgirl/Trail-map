@@ -275,46 +275,59 @@ function drawRoute(path) {
 
 map.on("click", e => {
   console.log("Map clicked at", e.latlng);
-  const clickedPoint = turf.point([e.latlng.lng, e.latlng.lat]);
 
-  // Find the nearest point on any trail segment
-  let nearestPoint = null;
+  const clickPoint = turf.point([e.latlng.lng, e.latlng.lat]);
+  const allowedKeywords = getAllowedSeasonKeywords(document.getElementById('season-select').value);
+
   let minDist = Infinity;
+  let snappedPoint = null;
 
-  geojsonData.features.forEach(feature => {
-    if (feature.geometry.type === 'LineString') {
-      const line = turf.lineString(feature.geometry.coordinates);
-      const snapped = turf.nearestPointOnLine(line, clickedPoint, { units: 'kilometers' });
-      const dist = snapped.properties.dist;
+  geojsonData.features.forEach(f => {
+    const name = f.properties.name || f.properties.NOM || "";
+    if (!hasSeasonKeyword(name, allowedKeywords)) return;
+
+    if (f.geometry.type === 'LineString') {
+      const line = turf.lineString(f.geometry.coordinates);
+      const candidate = turf.nearestPointOnLine(line, clickPoint, { units: 'kilometers' });
+      const dist = turf.pointToLineDistance(clickPoint, line, { units: 'kilometers' });
 
       if (dist < minDist) {
         minDist = dist;
-        nearestPoint = snapped;
+        snappedPoint = candidate;
       }
     }
   });
 
-  if (!nearestPoint) {
-    alert("Could not find a nearby trail to snap to.");
+  if (!snappedPoint) {
+    alert("❌ No nearby trail segment found.");
     return;
   }
 
-  const snappedLatLng = L.latLng(nearestPoint.geometry.coordinates[1], nearestPoint.geometry.coordinates[0]);
+  const snappedLatLng = L.latLng(snappedPoint.geometry.coordinates[1], snappedPoint.geometry.coordinates[0]);
 
   if (!startMarker) {
     startMarker = L.marker(snappedLatLng, {
       draggable: true,
-      icon: L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png' })
+      icon: L.icon({
+        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
     }).addTo(map);
   } else if (!endMarker) {
     endMarker = L.marker(snappedLatLng, {
       draggable: true,
-      icon: L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png' })
+      icon: L.icon({
+        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
     }).addTo(map);
 
     const startKey = findNearestNode(startMarker.getLatLng());
     const endKey = findNearestNode(endMarker.getLatLng());
     const path = dijkstra(startKey, endKey);
+
     if (path.length > 0) {
       drawRoute(path);
     } else {
@@ -333,6 +346,7 @@ map.on("click", e => {
     document.getElementById("directions").innerHTML = "";
   }
 });
+
 
 
 
