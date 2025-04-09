@@ -92,13 +92,18 @@ function hasSeasonKeyword(name, allowedKeywords) {
 }
 
 function buildGraph(data, seasonMode) {
+  console.log("Building graph for season mode:", seasonMode);
   graph = {}; nodeCoords = {};
   const allowedKeywords = getAllowedSeasonKeywords(seasonMode);
+  let skipped = 0, added = 0;
 
   data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
       const name = f.properties.name || f.properties.NOM || "";
-      if (!hasSeasonKeyword(name, allowedKeywords)) return;
+      if (!hasSeasonKeyword(name, allowedKeywords)) {
+        skipped++;
+        return;
+      }
 
       const coords = f.geometry.coordinates;
       for (let i = 0; i < coords.length - 1; i++) {
@@ -109,10 +114,11 @@ function buildGraph(data, seasonMode) {
         addEdge(b, a, dist);
         nodeCoords[a] = coords[i];
         nodeCoords[b] = coords[i + 1];
+        added++;
       }
     }
   });
-  console.log(`Graph built for mode: ${seasonMode}`, graph);
+  console.log(`Graph built with ${added} connections and ${skipped} skipped features.`);
   renderGeoJson(data, allowedKeywords);
 }
 
@@ -128,6 +134,7 @@ function renderGeoJson(data, allowedKeywords) {
 }
 
 function generateDirections(path) {
+  console.log("Generating directions for path of length:", path.length);
   const instructions = [];
   for (let i = 1; i < path.length - 1; i++) {
     const prevCoord = nodeCoords[path[i - 1]];
@@ -162,8 +169,6 @@ function generateDirections(path) {
 
 function findNearestNode(latlng) {
   let nearest = null, minDist = Infinity;
-  const maxAcceptableDistance = 0.2; // ~200 meters
-
   for (let key in nodeCoords) {
     const coord = nodeCoords[key];
     const dist = turf.distance(turf.point([latlng.lng, latlng.lat]), turf.point(coord));
@@ -172,18 +177,12 @@ function findNearestNode(latlng) {
       nearest = key;
     }
   }
-
-  if (minDist > maxAcceptableDistance) {
-    console.warn(`No node found within ${maxAcceptableDistance}km. Nearest was ${minDist.toFixed(3)}km`);
-    return null;
-  }
-
-  console.log(`Nearest node to clicked location is ${nearest} at distance ${minDist.toFixed(3)}km`);
+  console.log("Nearest node to", latlng, "is", nearest, "at distance", minDist);
   return nearest;
 }
 
-
 function dijkstra(startKey, endKey) {
+  console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
   dist[startKey] = 0;
 
@@ -214,10 +213,12 @@ function dijkstra(startKey, endKey) {
     path.unshift(u);
     u = prev[u];
   }
+  console.log("Dijkstra path:", path);
   return path;
 }
 
 function drawRoute(path) {
+  console.log("Drawing route with", path.length, "points.");
   routeLayers.forEach(l => map.removeLayer(l));
   routeLayers = [];
 
@@ -237,30 +238,20 @@ function drawRoute(path) {
 }
 
 map.on("click", e => {
+  console.log("Map clicked at", e.latlng);
   if (!startMarker) {
     startMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("Start").openPopup();
   } else if (!endMarker) {
     endMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("End").openPopup();
     const startKey = findNearestNode(startMarker.getLatLng());
     const endKey = findNearestNode(endMarker.getLatLng());
-
-    console.log("Start node:", startKey, "End node:", endKey);
-
-    if (!startKey || !endKey) {
-      alert("Start or End point is too far from a valid trail segment.");
-      return;
-    }
-
     const path = dijkstra(startKey, endKey);
-
-    if (path.length > 1) {
+    if (path.length > 0) {
       drawRoute(path);
     } else {
       alert("No path found.");
-      console.warn("Dijkstra returned no valid route.", { startKey, endKey, path });
+      console.warn("No path found between", startKey, "and", endKey);
     }
-
-
   } else {
     map.removeLayer(startMarker);
     map.removeLayer(endMarker);
@@ -286,6 +277,7 @@ fetch('map.geojson')
     geojsonData = data;
     const dropdown = document.getElementById('season-select');
     dropdown.addEventListener('change', () => {
+      console.log("Season dropdown changed to:", dropdown.value);
       buildGraph(geojsonData, dropdown.value);
     });
     buildGraph(data, dropdown.value);
