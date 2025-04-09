@@ -162,6 +162,8 @@ function generateDirections(path) {
 
 function findNearestNode(latlng) {
   let nearest = null, minDist = Infinity;
+  const maxAcceptableDistance = 0.2; // ~200 meters
+
   for (let key in nodeCoords) {
     const coord = nodeCoords[key];
     const dist = turf.distance(turf.point([latlng.lng, latlng.lat]), turf.point(coord));
@@ -170,8 +172,16 @@ function findNearestNode(latlng) {
       nearest = key;
     }
   }
+
+  if (minDist > maxAcceptableDistance) {
+    console.warn(`No node found within ${maxAcceptableDistance}km. Nearest was ${minDist.toFixed(3)}km`);
+    return null;
+  }
+
+  console.log(`Nearest node to clicked location is ${nearest} at distance ${minDist.toFixed(3)}km`);
   return nearest;
 }
+
 
 function dijkstra(startKey, endKey) {
   const dist = {}, prev = {}, visited = new Set();
@@ -231,23 +241,25 @@ map.on("click", e => {
     startMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("Start").openPopup();
   } else if (!endMarker) {
     endMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("End").openPopup();
-const startKey = findNearestNode(startMarker.getLatLng());
-const endKey = findNearestNode(endMarker.getLatLng());
+    const startKey = findNearestNode(startMarker.getLatLng());
+    const endKey = findNearestNode(endMarker.getLatLng());
 
-if (!startKey || !endKey) {
-  alert("Start or End point is too far from any trail. Please select a location closer to a trail.");
-  console.warn("Invalid node(s):", { startKey, endKey });
-  return;
-}
+    console.log("Start node:", startKey, "End node:", endKey);
 
-const path = dijkstra(startKey, endKey);
+    if (!startKey || !endKey) {
+      alert("Start or End point is too far from a valid trail segment.");
+      return;
+    }
 
-if (path.length > 1) {
-  drawRoute(path);
-} else {
-  alert("No path found between selected points.");
-  console.warn("Dijkstra returned empty or single-point path.", { startKey, endKey, path });
-}
+    const path = dijkstra(startKey, endKey);
+
+    if (path.length > 1) {
+      drawRoute(path);
+    } else {
+      alert("No path found.");
+      console.warn("Dijkstra returned no valid route.", { startKey, endKey, path });
+    }
+
 
   } else {
     map.removeLayer(startMarker);
