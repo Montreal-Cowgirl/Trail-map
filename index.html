@@ -504,12 +504,12 @@ map.on("click", e => {
       })
     }).addTo(map);
 
-    const startKey = injectPointIntoGraph(startMarker.getLatLng(), graph, nodeCoords);
-    const endKey = injectPointIntoGraph(endMarker.getLatLng(), graph, nodeCoords);
+       const startKey = addTemporaryNodeToGraph({ lat: snappedStartCoords[0], lng: snappedStartCoords[1] });
+       const endKey = addTemporaryNodeToGraph({ lat: snappedEndCoords[0], lng: snappedEndCoords[1] });
     
     // Snap the marker locations to the nearest point on a trail
-const snappedStart = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat]));
-const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat]));
+    const snappedStart = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat]));
+    const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat]));
 
 
 // Get the snapped coordinates as [lng, lat] keys
