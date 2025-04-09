@@ -91,36 +91,54 @@ function hasSeasonKeyword(name, allowedKeywords) {
   return allowedKeywords.some(kw => normName.includes(normalize(kw)));
 }
 
-function buildGraph(data, seasonMode) {
-  console.log("Building graph for season mode:", seasonMode);
-  graph = {}; nodeCoords = {};
-  const allowedKeywords = getAllowedSeasonKeywords(seasonMode);
-  let skipped = 0, added = 0;
+function buildGraph() {
+  const selectedSeason = document.getElementById("season-select").value;
+  const allowedKeywords = getAllowedSeasonKeywords(selectedSeason);
 
-  data.features.forEach(f => {
-    if (f.geometry.type === 'LineString') {
-      const name = f.properties.name || f.properties.NOM || "";
-      if (!hasSeasonKeyword(name, allowedKeywords)) {
-        skipped++;
-        return;
-      }
+  console.log("Building graph for season mode:", selectedSeason);
 
+  graph = {};
+  nodeCoords = {};
+
+  let skipped = 0;
+  let included = 0;
+
+  geojsonData.features.forEach(f => {
+    const name = f.properties.name || f.properties.NOM || "";
+    
+    // Skip segments not allowed by the current filter
+    if (selectedSeason !== "all" && !hasSeasonKeyword(name, allowedKeywords)) {
+      skipped++;
+      return;
+    }
+
+    if (f.geometry.type === "LineString") {
       const coords = f.geometry.coordinates;
+
       for (let i = 0; i < coords.length - 1; i++) {
-        const a = coordKey(coords[i]);
-        const b = coordKey(coords[i + 1]);
-        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
-        addEdge(a, b, dist);
-        addEdge(b, a, dist);
-        nodeCoords[a] = coords[i];
-        nodeCoords[b] = coords[i + 1];
-        added++;
+        const a = coords[i];
+        const b = coords[i + 1];
+        const aKey = coordKey(a);
+        const bKey = coordKey(b);
+
+        const dist = turf.distance(turf.point(a), turf.point(b), { units: 'kilometers' });
+
+        if (!graph[aKey]) graph[aKey] = [];
+        if (!graph[bKey]) graph[bKey] = [];
+
+        graph[aKey].push({ node: bKey, dist });
+        graph[bKey].push({ node: aKey, dist });
+
+        nodeCoords[aKey] = a;
+        nodeCoords[bKey] = b;
+        included++;
       }
     }
   });
-  console.log(`Graph built with ${added} connections and ${skipped} skipped features.`);
-  renderGeoJson(data, allowedKeywords);
+
+  console.log(`Graph built with ${included} connections and ${skipped} skipped features.`);
 }
+
 
 function renderGeoJson(data, allowedKeywords) {
   if (window.trailsLayer) map.removeLayer(window.trailsLayer);
