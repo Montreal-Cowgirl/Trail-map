@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -49,6 +49,11 @@
 let graph = {}, nodeCoords = {}, geojsonData;
 const map = L.map('map').setView([46.8, -71.2], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let startMarker = null;
+let endMarker = null;
+let userLocation = null;
+let routeLayers = [];
 
 function addEdge(a, b, dist) {
   if (!graph[a]) graph[a] = [];
@@ -154,6 +159,104 @@ function generateDirections(path) {
   });
   return instructions;
 }
+
+function findNearestNode(latlng) {
+  let nearest = null, minDist = Infinity;
+  for (let key in nodeCoords) {
+    const coord = nodeCoords[key];
+    const dist = turf.distance(turf.point([latlng.lng, latlng.lat]), turf.point(coord));
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = key;
+    }
+  }
+  return nearest;
+}
+
+function dijkstra(startKey, endKey) {
+  const dist = {}, prev = {}, visited = new Set();
+  dist[startKey] = 0;
+
+  while (true) {
+    let u = null;
+    let minDist = Infinity;
+    for (let node in dist) {
+      if (!visited.has(node) && dist[node] < minDist) {
+        minDist = dist[node];
+        u = node;
+      }
+    }
+    if (!u || u === endKey) break;
+
+    visited.add(u);
+    for (let neighbor of (graph[u] || [])) {
+      const alt = dist[u] + neighbor.dist;
+      if (alt < (dist[neighbor.node] || Infinity)) {
+        dist[neighbor.node] = alt;
+        prev[neighbor.node] = u;
+      }
+    }
+  }
+
+  const path = [];
+  let u = endKey;
+  while (u) {
+    path.unshift(u);
+    u = prev[u];
+  }
+  return path;
+}
+
+function drawRoute(path) {
+  routeLayers.forEach(l => map.removeLayer(l));
+  routeLayers = [];
+
+  const coords = path.map(k => nodeCoords[k]);
+  const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
+  routeLayers.push(line);
+
+  const totalDist = coords.reduce((sum, _, i) => {
+    if (i === 0) return 0;
+    return sum + turf.distance(turf.point(coords[i - 1]), turf.point(coords[i]));
+  }, 0);
+
+  document.getElementById("distance").textContent = totalDist.toFixed(2);
+  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
+
+  generateDirections(path);
+}
+
+map.on("click", e => {
+  if (!startMarker) {
+    startMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("Start").openPopup();
+  } else if (!endMarker) {
+    endMarker = L.marker(e.latlng, { draggable: true }).addTo(map).bindPopup("End").openPopup();
+    const startKey = findNearestNode(startMarker.getLatLng());
+    const endKey = findNearestNode(endMarker.getLatLng());
+    const path = dijkstra(startKey, endKey);
+    if (path.length > 0) {
+      drawRoute(path);
+    } else {
+      alert("No path found.");
+    }
+  } else {
+    map.removeLayer(startMarker);
+    map.removeLayer(endMarker);
+    startMarker = null;
+    endMarker = null;
+    routeLayers.forEach(l => map.removeLayer(l));
+    routeLayers = [];
+    document.getElementById("distance").textContent = "-";
+    document.getElementById("time").textContent = "-";
+    document.getElementById("directions").innerHTML = "";
+  }
+});
+
+navigator.geolocation.getCurrentPosition(pos => {
+  userLocation = [pos.coords.latitude, pos.coords.longitude];
+  L.marker(userLocation).addTo(map).bindPopup("You are here").openPopup();
+  map.setView(userLocation, 14);
+});
 
 fetch('map.geojson')
   .then(res => res.json())
