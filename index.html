@@ -345,45 +345,58 @@ function dijkstra(startKey, endKey) {
 
 function drawRoute(path) {
   console.log("Drawing route with", path.length, "points.");
+  
+  // Clear previous route layers
   routeLayers.forEach(l => map.removeLayer(l));
   routeLayers = [];
 
-const coords = path.map(k => {
-  const coord = nodeCoords[k];
-  // If it's a GeoJSON Point, extract coordinates
-  if (coord && coord.type === "Point" && Array.isArray(coord.coordinates)) {
-    return [coord.coordinates[1], coord.coordinates[0]]; // [lat, lng]
-  }
-  // If it's a flat [lng, lat] or [lat, lng]
-  if (Array.isArray(coord) && coord.length === 2 && typeof coord[0] === "number") {
-    return coord;
-  }
-  // If it's something else (like [lng, lat, elevation]), trim it
-  if (Array.isArray(coord) && coord.length >= 2) {
-    return [coord[1], coord[0]]; // Assume [lng, lat, ...] → convert to [lat, lng]
-  }
-  console.warn("Invalid coordinate:", coord);
-  return null;
-}).filter(Boolean);
+  const coords = path.map(k => {
+    const coord = nodeCoords[k];
+
+    if (!coord) {
+      console.warn("Missing nodeCoords for key:", k);
+      return null;
+    }
+
+    // Normalize to [lat, lng] format for Leaflet
+    if (Array.isArray(coord)) {
+      // coord is [lng, lat] or [lng, lat, ...]
+      const lng = coord[0];
+      const lat = coord[1];
+      return [lat, lng];
+    }
+
+    // If somehow stored as GeoJSON Point
+    if (coord.type === "Point" && Array.isArray(coord.coordinates)) {
+      const [lng, lat] = coord.coordinates;
+      return [lat, lng];
+    }
+
+    console.warn("Invalid coordinate format for key:", k, "→", coord);
+    return null;
+  }).filter(Boolean);
 
   console.log("Route coordinates:", coords);
+
   if (coords.length < 2) {
     console.warn("Not enough valid coordinates to draw route.");
     return;
   }
 
-
+  // Draw route
   const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
   routeLayers.push(line);
 
+  // Calculate and display distance and estimated time
   const totalDist = coords.reduce((sum, _, i) => {
     if (i === 0) return 0;
-    return sum + turf.distance(turf.point(coords[i - 1]), turf.point(coords[i]));
+    return sum + turf.distance(turf.point([coords[i - 1][1], coords[i - 1][0]]), turf.point([coords[i][1], coords[i][0]]));
   }, 0);
 
   document.getElementById("distance").textContent = totalDist.toFixed(2);
-  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60);
+  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60); // 5 km/h
 }
+
 
 
 map.on("click", e => {
