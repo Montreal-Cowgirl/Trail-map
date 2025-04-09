@@ -516,10 +516,6 @@ const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.fe
 const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
 const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
 
-// Convert to keys for the graph
-let startKey = `${snappedStartCoords[0].toFixed(5)},${snappedStartCoords[1].toFixed(5)}`;
-let endKey = `${snappedEndCoords[0].toFixed(5)},${snappedEndCoords[1].toFixed(5)}`;
-
 // Inject into graph if not already present
 if (!graph[startKey]) {
   graph[startKey] = findNearestGraphConnections(snappedStartCoords);
