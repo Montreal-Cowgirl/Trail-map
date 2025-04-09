@@ -278,72 +278,7 @@ function addTemporaryNodeToGraph(snappedPoint) {
   return keySnapped;
 }
 
-  function injectPointIntoGraph(latlng, graph, nodeCoords, trailData) {
-  const point = turf.point([latlng.lng, latlng.lat]);
 
-  let minDist = Infinity;
-  let closestSegment = null;
-  let snappedCoord = null;
-
-  trailData.features.forEach(feature => {
-    if (feature.geometry.type === "LineString") {
-      const line = turf.lineString(feature.geometry.coordinates);
-      const snapped = turf.nearestPointOnLine(line, point);
-      const dist = snapped.properties.dist;
-      if (dist < minDist) {
-        minDist = dist;
-        closestSegment = line;
-        snappedCoord = snapped.geometry.coordinates;
-      }
-    }
-  });
-
-  if (!closestSegment || !snappedCoord) return null;
-
-  const coords = closestSegment.geometry.coordinates;
-  let insertIndex = -1;
-  let minSegDist = Infinity;
-
-  for (let i = 0; i < coords.length - 1; i++) {
-    const seg = turf.lineString([coords[i], coords[i + 1]]);
-    const proj = turf.nearestPointOnLine(seg, point);
-    const d = proj.properties.dist;
-    if (d < minSegDist) {
-      minSegDist = d;
-      insertIndex = i;
-    }
-  }
-
-  if (insertIndex === -1) return null;
-
-  const key = `${snappedCoord[0].toFixed(5)},${snappedCoord[1].toFixed(5)}`;
-  if (nodeCoords[key]) return key; // already in graph
-
-  const from = coords[insertIndex];
-  const to = coords[insertIndex + 1];
-  const distFrom = turf.distance(turf.point(from), turf.point(snappedCoord));
-  const distTo = turf.distance(turf.point(to), turf.point(snappedCoord));
-
-  const fromKey = `${from[0].toFixed(5)},${from[1].toFixed(5)}`;
-  const toKey = `${to[0].toFixed(5)},${to[1].toFixed(5)}`;
-
-  graph[key] = [];
-  if (graph[fromKey]) {
-    graph[key].push({ node: fromKey, dist: distFrom });
-    graph[fromKey].push({ node: key, dist: distFrom });
-  }
-  if (graph[toKey]) {
-    graph[key].push({ node: toKey, dist: distTo });
-    graph[toKey].push({ node: key, dist: distTo });
-  }
-
-
-  nodeCoords[key] = [snappedCoord[0], snappedCoord[1]];
-  return key;
-}
-
-
-  
 function dijkstra(startKey, endKey) {
   console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
