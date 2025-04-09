@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -275,38 +275,28 @@ function renderDirections(path) {
 // 🚀 Improved user-friendly direction generation
 function generateDirections(path) {
   const instructions = [];
-  let prevBearing = null;
-  let distanceSinceLastTurn = 0;
+  for (let i = 1; i < path.length - 1; i++) {
+    const prevCoord = nodeCoords[path[i - 1]];
+    const currCoord = nodeCoords[path[i]];
+    const nextCoord = nodeCoords[path[i + 1]];
 
-  for (let i = 0; i < path.length - 1; i++) {
-    const from = nodeCoords[path[i]];
-    const to = nodeCoords[path[i + 1]];
-    const dist = turf.distance(turf.point(from), turf.point(to));
-    distanceSinceLastTurn += dist;
+    const prev = turf.point(prevCoord);
+    const curr = turf.point(currCoord);
+    const next = turf.point(nextCoord);
 
-    const bearing = turf.bearing(turf.point(from), turf.point(to));
-    if (prevBearing !== null) {
-      let angleChange = bearing - prevBearing;
-      if (angleChange > 180) angleChange -= 360;
-      if (angleChange < -180) angleChange += 360;
+    const angle1 = turf.bearing(prev, curr);
+    const angle2 = turf.bearing(curr, next);
+    let angle = Math.abs(angle2 - angle1);
+    if (angle > 180) angle = 360 - angle;
 
-      const absChange = Math.abs(angleChange);
-      if (absChange > 30) {
-        let direction = '';
-        if (absChange > 135) direction = 'Make a U-turn';
-        else if (absChange > 90) direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
-        else if (absChange > 30) direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+    if (angle > 30) {
+      const turn = angle2 > angle1 ? "right" : "left";
+      const segmentDistance = turf.distance(curr, next, { units: 'kilometers' });
+      const roundedDistance = (segmentDistance * 1000).toFixed(0);
 
-        const meters = Math.round(distanceSinceLastTurn * 1000);
-        const trailName = `trail segment ${i}`; // placeholder, replace if names available
-
-        instructions.push(`${direction} in ${meters} meters on ${trailName}`);
-        distanceSinceLastTurn = 0;
-      }
+      instructions.push(`In ${roundedDistance} meters, turn ${turn}`);
     }
-    prevBearing = bearing;
   }
-
   return instructions;
 }
 </script>
