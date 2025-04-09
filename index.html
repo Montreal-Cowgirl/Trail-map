@@ -185,30 +185,45 @@ function dijkstra(startKey, endKey) {
   console.log("Running Dijkstra from", startKey, "to", endKey);
   const dist = {}, prev = {}, visited = new Set();
   dist[startKey] = 0;
-  let iterations = 0, maxIterations = 50000;
 
-  while (iterations++ < maxIterations) {
-    let u = null, minDist = Infinity;
-    for (let node in dist) {
-      if (!visited.has(node) && dist[node] < minDist) {
+  let iterations = 0, maxIterations = 20000;
+  const queue = new Set([startKey]);
+
+  while (queue.size > 0 && iterations++ < maxIterations) {
+    let u = null;
+    let minDist = Infinity;
+
+    for (let node of queue) {
+      if (dist[node] < minDist) {
         minDist = dist[node];
         u = node;
       }
     }
-    if (!u || u === endKey) break;
+
+    if (!u) break;
+    queue.delete(u);
+
+    if (iterations % 1000 === 0) {
+      console.log(`Iteration ${iterations}, visiting ${u}, dist=${dist[u]}`);
+    }
+
+    if (u === endKey) break;
 
     visited.add(u);
     for (let neighbor of (graph[u] || [])) {
+      if (visited.has(neighbor.node)) continue;
       const alt = dist[u] + neighbor.dist;
       if (alt < (dist[neighbor.node] || Infinity)) {
         dist[neighbor.node] = alt;
         prev[neighbor.node] = u;
+        queue.add(neighbor.node);
       }
     }
   }
 
   if (iterations >= maxIterations) {
-    console.warn("Dijkstra aborted: too many iterations");
+    console.warn("❌ Dijkstra aborted: too many iterations or disconnected graph.");
+    alert("⚠️ Route search failed: too many steps. This might be due to disconnected trails.");
     return [];
   }
 
@@ -218,14 +233,17 @@ function dijkstra(startKey, endKey) {
     path.unshift(u);
     u = prev[u];
   }
+
   if (path[0] !== startKey) {
-    console.warn("No path could be reconstructed between", startKey, "and", endKey);
+    console.warn("❌ No path could be reconstructed from", startKey, "to", endKey);
+    alert("⚠️ Unable to reconstruct route. Trails might be disconnected.");
     return [];
   }
 
-  console.log("Dijkstra path:", path);
+  console.log("✅ Dijkstra finished. Path length:", path.length);
   return path;
 }
+
 
 function drawRoute(path) {
   console.log("Drawing route with", path.length, "points.");
