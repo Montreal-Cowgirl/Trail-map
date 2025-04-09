@@ -301,13 +301,30 @@ function drawRoute(path) {
   routeLayers.forEach(l => map.removeLayer(l));
   routeLayers = [];
 
-  const coords = path.map(k => nodeCoords[k]);
-  console.log("Route coordinates:", coords);
+const coords = path.map(k => {
+  const coord = nodeCoords[k];
+  // If it's a GeoJSON Point, extract coordinates
+  if (coord && coord.type === "Point" && Array.isArray(coord.coordinates)) {
+    return [coord.coordinates[1], coord.coordinates[0]]; // [lat, lng]
+  }
+  // If it's a flat [lng, lat] or [lat, lng]
+  if (Array.isArray(coord) && coord.length === 2 && typeof coord[0] === "number") {
+    return coord;
+  }
+  // If it's something else (like [lng, lat, elevation]), trim it
+  if (Array.isArray(coord) && coord.length >= 2) {
+    return [coord[1], coord[0]]; // Assume [lng, lat, ...] → convert to [lat, lng]
+  }
+  console.warn("Invalid coordinate:", coord);
+  return null;
+}).filter(Boolean);
 
+  console.log("Route coordinates:", coords);
   if (coords.length < 2) {
-    console.warn("Not enough coordinates to draw a line.");
+    console.warn("Not enough valid coordinates to draw route.");
     return;
   }
+
 
   const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
   routeLayers.push(line);
