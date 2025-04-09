@@ -221,58 +221,59 @@ function findNearestNode(latlng) {
 }
 
 
-function addTemporaryNodeToGraph({ lat, lng }) {
-  const tempKey = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+function addTemporaryNodeToGraph(snappedPoint) {
+  const tempKey = coordKey([snappedPoint.lng, snappedPoint.lat]);
+
   let closestSegment = null;
   let minDist = Infinity;
 
-  // Find the closest segment in the GeoJSON trail data
-  geojsonData.features.forEach(f => {
-    if (f.geometry.type === "LineString") {
-      const coords = f.geometry.coordinates;
-      for (let i = 0; i < coords.length - 1; i++) {
-        const a = coords[i]; // [lng, lat]
-        const b = coords[i + 1];
-        const line = turf.lineString([a, b]);
+  // Look for a segment in the GRAPH, not just in all trail data
+  for (const aKey in graph) {
+    for (const edge of graph[aKey]) {
+      const bKey = edge.node;
 
-        const dist = turf.pointToLineDistance(turf.point([lng, lat]), line, { units: 'kilometers' });
+      const a = nodeCoords[aKey];
+      const b = nodeCoords[bKey];
 
-        if (dist < minDist) {
-          minDist = dist;
-          closestSegment = { a, b };
-        }
+      if (!a || !b) continue;
+
+      const line = turf.lineString([a, b]);
+      const dist = turf.pointToLineDistance(
+        turf.point([snappedPoint.lng, snappedPoint.lat]),
+        line,
+        { units: 'kilometers' }
+      );
+
+      if (dist < minDist) {
+        minDist = dist;
+        closestSegment = { a, b, aKey, bKey };
       }
     }
-  });
+  }
 
   if (closestSegment) {
-    const { a, b } = closestSegment;
+    const { a, b, aKey, bKey } = closestSegment;
+    const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
+    const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
 
-    const distToA = turf.distance(turf.point(a), turf.point([lng, lat]), { units: 'kilometers' });
-    const distToB = turf.distance(turf.point(b), turf.point([lng, lat]), { units: 'kilometers' });
-
-    const aKey = `${a[0].toFixed(5)},${a[1].toFixed(5)}`;
-    const bKey = `${b[0].toFixed(5)},${b[1].toFixed(5)}`;
-
-    // Add connections from the temp node to existing segment ends
     graph[tempKey] = [
       { node: aKey, dist: distToA },
       { node: bKey, dist: distToB }
     ];
 
-    // Add reverse connections to temp node
-    if (!graph[aKey]) graph[aKey] = [];
-    if (!graph[bKey]) graph[bKey] = [];
-
+    // Reverse connections
     graph[aKey].push({ node: tempKey, dist: distToA });
     graph[bKey].push({ node: tempKey, dist: distToB });
 
-    // ✅ Store snapped coordinate in nodeCoords in [lng, lat] format
-    nodeCoords[tempKey] = [lng, lat];
+    // Store the actual coordinates
+    nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+  } else {
+    console.warn("❌ No nearby segment found in graph to snap to.");
   }
 
   return tempKey;
 }
+
 
 
 
