@@ -195,7 +195,7 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const a = coords[i];
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
-        const dist = turf.pointToLineDistance(turf.point([snappedPoint.lng, snappedPoint.lat]), line);
+        const dist = turf.pointToLineDistance(turf.point([snappedPoint.lng, snappedPoint.lat]), line, { units: 'kilometers' });
         if (dist < minDist) {
           minDist = dist;
           closestSegment = { a, b };
@@ -327,15 +327,16 @@ function addTemporaryNodeToGraph(snappedPoint) {
   const fromKey = `${from[0].toFixed(5)},${from[1].toFixed(5)}`;
   const toKey = `${to[0].toFixed(5)},${to[1].toFixed(5)}`;
 
-  graph[key] = {};
+  graph[key] = [];
   if (graph[fromKey]) {
-    graph[key][fromKey] = distFrom;
-    graph[fromKey][key] = distFrom;
+    graph[key].push({ node: fromKey, dist: distFrom });
+    graph[fromKey].push({ node: key, dist: distFrom });
   }
   if (graph[toKey]) {
-    graph[key][toKey] = distTo;
-    graph[toKey][key] = distTo;
+    graph[key].push({ node: toKey, dist: distTo });
+    graph[toKey].push({ node: key, dist: distTo });
   }
+
 
   nodeCoords[key] = [snappedCoord[0], snappedCoord[1]];
   return key;
@@ -507,16 +508,17 @@ map.on("click", e => {
     const endKey = injectPointIntoGraph(endMarker.getLatLng(), graph, nodeCoords);
     
     // Snap the marker locations to the nearest point on a trail
-const snappedStart = turf.nearestPointOnLine(trailsGeoJSON, startMarker.getLatLng());
-const snappedEnd = turf.nearestPointOnLine(trailsGeoJSON, endMarker.getLatLng());
+const snappedStart = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat]));
+const snappedEnd = turf.nearestPointOnLine(turf.featureCollection(geojsonData.features), turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat]));
+
 
 // Get the snapped coordinates as [lng, lat] keys
 const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
 const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
 
 // Convert to keys for the graph
-startKey = `${snappedStartCoords[0].toFixed(5)},${snappedStartCoords[1].toFixed(5)}`;
-endKey = `${snappedEndCoords[0].toFixed(5)},${snappedEndCoords[1].toFixed(5)}`;
+let startKey = `${snappedStartCoords[0].toFixed(5)},${snappedStartCoords[1].toFixed(5)}`;
+let endKey = `${snappedEndCoords[0].toFixed(5)},${snappedEndCoords[1].toFixed(5)}`;
 
 // Inject into graph if not already present
 if (!graph[startKey]) {
