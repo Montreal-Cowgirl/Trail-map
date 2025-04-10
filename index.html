@@ -46,6 +46,27 @@
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
+// Request and show user location with a marker
+map.locate({ setView: true, maxZoom: 16 });
+
+function onLocationFound(e) {
+  const radius = e.accuracy;
+  const userMarker = L.marker(e.latlng)
+    .addTo(map)
+    .bindPopup("You are here")
+    .openPopup();
+
+  // Optional: show accuracy circle
+  // L.circle(e.latlng, radius).addTo(map);
+}
+
+function onLocationError(e) {
+  alert("Location access denied or unavailable.");
+}
+
+map.on('locationfound', onLocationFound);
+map.on('locationerror', onLocationError);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
