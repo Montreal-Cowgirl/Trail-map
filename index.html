@@ -156,7 +156,42 @@ function buildGraph(data, seasonMode = "auto") {
   }
 
   console.log(`✅ Graph built with ${Object.keys(graph).length} connections and ${skipped} skipped features.`);
+
+  // 🧪 Check connectivity of all features after graph construction
+  data.features.forEach(f => {
+    if (f.geometry.type === "LineString" && f.properties?.id != null) {
+      debugFeatureConnectivity(f.properties.id);
+    }
+  });
 }
+
+
+// ✅ Add debug function here
+function debugFeatureConnectivity(featureId) {
+  const feature = geojsonData.features.find(f => f.properties?.id == featureId);
+  if (!feature) {
+    console.warn("Feature ID", featureId, "not found");
+    return;
+  }
+
+  const coords = feature.geometry.coordinates;
+  let connectedPairs = 0;
+
+  for (let i = 0; i < coords.length - 1; i++) {
+    const aKey = coordKey(coords[i]);
+    const bKey = coordKey(coords[i + 1]);
+
+    const aConnections = graph[aKey]?.map(conn => conn.node) ?? [];
+    if (aConnections.includes(bKey)) {
+      connectedPairs++;
+    } else {
+      console.warn(`🚫 Missing connection between ${aKey} and ${bKey}`);
+    }
+  }
+
+  console.log(`✅ Feature ${featureId} has ${connectedPairs} connected segments out of ${coords.length - 1}`);
+}
+  
 
 function traverseGraphFrom(startKey, graph) {
   const visited = new Set();
@@ -307,6 +342,9 @@ function addTemporaryNodeToGraph(snappedPoint) {
   const aKey = coordKey(a);
   const bKey = coordKey(b);
 
+  if (!nodeCoords[aKey]) nodeCoords[aKey] = a;
+  if (!nodeCoords[bKey]) nodeCoords[bKey] = b;
+  
   const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
   const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
 
