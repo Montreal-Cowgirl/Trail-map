@@ -25,6 +25,14 @@
   </style>
 </head>
 <body>
+<div style="padding: 1rem; background: #eee;">
+  <label for="trail-type">Trail Type:</label>
+  <select id="trail-type">
+    <option value="all">All</option>
+    <option value="ete">Summer (Été + Saison)</option>
+    <option value="hiver">Winter (Hiver + Saison)</option>
+  </select>
+</div>
 
 <div id="map"></div>
 
@@ -127,17 +135,21 @@ function filterTrails(mode) {
   return {
     type: 'FeatureCollection',
     features: originalTrailData.features.filter(f => {
-      const name = normalize(f.properties.nom || "");
-
-      const isSaison = name.includes("saison");
-      const isEte = name.includes("ete");
-      const isHiver = name.includes("hiver");
-
+      const rawName = f.properties.name || "";
+      const name = rawName
+        .normalize("NFD")                 // Normalize accents
+        .replace(/[\u0300-\u036f]/g, "") // Strip accents
+        .toLowerCase();
+    
+      const hasEte = name.includes("ete");
+      const hasHiver = name.includes("hiver");
+      const hasSaison = name.includes("saison");
+    
       if (mode === "all") return true;
-      if (mode === "ete") return isEte || isSaison;
-      if (mode === "hiver") return isHiver || isSaison;
+      if (mode === "ete") return hasEte || hasSaison;
+      if (mode === "hiver") return hasHiver || hasSaison;
+    
       return false;
-      console.log("Filtered trail:", f.properties.nom);
     })
   };
 }
