@@ -271,46 +271,62 @@ function addTemporaryNodeToGraph(snappedPoint) {
   let minDist = Infinity;
   let maxAcceptableDist = 0.01;
 
-  geojsonData.features.forEach(f => {
-    if (f.geometry.type === "LineString") {
-      const coords = f.geometry.coordinates;
-      for (let i = 0; i < coords.length - 1; i++) {
-        const a = coords[i];
-        const b = coords[i + 1];
-        const line = turf.lineString([a, b]);
-        if (!Array.isArray([lng, lat]) || [lng, lat].some(n => typeof n !== 'number' || !Number.isFinite(n))) {
+geojsonData.features.forEach(f => {
+  if (f.geometry.type === "LineString") {
+    const coords = f.geometry.coordinates;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i];
+      const b = coords[i + 1];
+      const line = turf.lineString([a, b]);
+
+      if (!Array.isArray([lng, lat]) || [lng, lat].some(n => typeof n !== 'number' || !Number.isFinite(n))) {
         console.error('❌ Still invalid coordinate pair:', [lng, lat]);
         throw new Error('Invalid coordinate pair passed to turf.point()');
       }
 
-        const dist = turf.pointToLineDistance(
-          turf.point([lng, lat]), // ✅ safe here now
-          line,
-          { units: 'kilometers' }
-        );
+      const dist = turf.pointToLineDistance(
+        turf.point([lng, lat]),
+        line,
+        { units: 'kilometers' }
+      );
 
-        if (dist < minDist) {
-          minDist = dist;
-          closestSegment = { a, b };
-        }
+      if (dist < minDist) {
+        minDist = dist;
+        closestSegment = { a, b };
       }
     }
-  });
-
-  if (!closestSegment || minDist > maxAcceptableDist) {
-    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
-    alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
-    return null;
   }
+});
 
-  const { a, b } = closestSegment;
+if (!closestSegment || minDist > maxAcceptableDist) {
+  console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
+  alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
+  return null;
+}
+
+// 🔧 New lines below
+const { a, b } = closestSegment;
+const aKey = coordKey(a);
+const bKey = coordKey(b);
+
 const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
 const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
 
+graph[tempKey] = [
+  { node: aKey, dist: distToA },
+  { node: bKey, dist: distToB }
+];
+
+if (!graph[aKey]) graph[aKey] = [];
+if (!graph[bKey]) graph[bKey] = [];
+
+graph[aKey].push({ node: tempKey, dist: distToA });
+graph[bKey].push({ node: tempKey, dist: distToB });
+
 nodeCoords[tempKey] = [lng, lat];
 
-  console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
-  return tempKey;
+console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
+return tempKey;
 }
 
   function addSnappedPointToGraph(latlng) {
