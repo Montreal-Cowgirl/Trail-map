@@ -241,60 +241,60 @@ function findNearestNode(latlng) {
 
 function addTemporaryNodeToGraph(snappedPoint) {
   const tempKey = coordKey([snappedPoint.lng, snappedPoint.lat]);
-
   let closestSegment = null;
   let minDist = Infinity;
+  let maxAcceptableDist = 0.01; // ~10 meters in kilometers
 
-  // Look for a segment in the GRAPH, not just in all trail data
-  for (const aKey in graph) {
-    for (const edge of graph[aKey]) {
-      const bKey = edge.node;
-
-      const a = nodeCoords[aKey];
-      const b = nodeCoords[bKey];
-
-      if (!a || !b) continue;
-
-      const line = turf.lineString([a, b]);
-      const dist = turf.pointToLineDistance(
-        turf.point([snappedPoint.lng, snappedPoint.lat]),
-        line,
-        { units: 'kilometers' }
-      );
-
-      if (dist < minDist) {
-        minDist = dist;
-        closestSegment = { a, b, aKey, bKey };
+  // Try to find the closest segment
+  geojsonData.features.forEach(f => {
+    if (f.geometry.type === "LineString") {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i];
+        const b = coords[i + 1];
+        const line = turf.lineString([a, b]);
+        const dist = turf.pointToLineDistance(
+          turf.point([snappedPoint.lng, snappedPoint.lat]),
+          line,
+          { units: 'kilometers' }
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          closestSegment = { a, b };
+        }
       }
     }
+  });
+
+  if (!closestSegment || minDist > maxAcceptableDist) {
+    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
+    alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
+    return null;
   }
 
-  if (closestSegment) {
-    const { a, b, aKey, bKey } = closestSegment;
-    const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
-    const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
-  
-    graph[tempKey] = [
-      { node: aKey, dist: distToA },
-      { node: bKey, dist: distToB }
-    ];
-  
-    if (!graph[aKey]) graph[aKey] = [];
-    if (!graph[bKey]) graph[bKey] = [];
-  
-    graph[aKey].push({ node: tempKey, dist: distToA });
-    graph[bKey].push({ node: tempKey, dist: distToB });
-  
-    nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
-  
-    console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
-  } else {
-    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${snappedPoint.lng},${snappedPoint.lat}`);
-  }
+  const { a, b } = closestSegment;
+  const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
+  const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
 
+  const aKey = coordKey(a);
+  const bKey = coordKey(b);
 
+  // Add temp node and edges
+  graph[tempKey] = [
+    { node: aKey, dist: distToA },
+    { node: bKey, dist: distToB }
+  ];
+  if (!graph[aKey]) graph[aKey] = [];
+  if (!graph[bKey]) graph[bKey] = [];
+  graph[aKey].push({ node: tempKey, dist: distToA });
+  graph[bKey].push({ node: tempKey, dist: distToB });
+
+  nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+
+  console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
   return tempKey;
 }
+
 
 
 
