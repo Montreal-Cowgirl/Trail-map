@@ -147,16 +147,16 @@ function filterTrailData(data) {
 }
 // -----------------------------------------
 
-//fetch('map.geojson')
-//  .then(res => res.json())
-//  .then(data => {
-//    trailData = data;
-//    const filteredData = data;
+fetch('map.geojson')
+  .then(res => res.json())
+  .then(data => {
+    trailData = data;
+    const filteredData = data;
 
-//    L.geoJSON(filteredData, { color: 'blue' }).addTo(map);
-//    buildGraph(filteredData);
-//    connectNearbySegments(filteredData, 25);
-//  });
+    L.geoJSON(filteredData, { color: 'blue' }).addTo(map);
+    buildGraph(filteredData);
+    connectNearbySegments(filteredData, 25);
+  });
 
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
