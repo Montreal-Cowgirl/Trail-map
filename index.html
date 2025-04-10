@@ -321,46 +321,69 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
   }
 
-  function dijkstraWithBlockedEdges(blockedEdges) {
-    const distances = {}, previous = {}, pq = new Set(Object.keys(graph));
-    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-    Object.keys(graph).forEach(n => distances[n] = Infinity);
-    distances[start] = 0;
+function aStarWithBlockedEdges(blockedEdges) {
+  const distances = {}, previous = {}, fScores = {};
+  const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+  const openSet = new Set([start]);
 
-    while (pq.size > 0) {
-      let current = [...pq].reduce((a, b) => distances[a] < distances[b] ? a : b);
-      if (current === end) break;
-      pq.delete(current);
-      for (const neighbor of graph[current] || []) {
-        const edgeKey = `${current}->${neighbor.node}`;
-        if (blockedSet.has(edgeKey)) continue;
-        const alt = distances[current] + neighbor.dist;
-        if (alt < distances[neighbor.node]) {
-          distances[neighbor.node] = alt;
-          previous[neighbor.node] = current;
-        }
+  Object.keys(graph).forEach(n => {
+    distances[n] = Infinity;
+    fScores[n] = Infinity;
+  });
+  distances[start] = 0;
+  fScores[start] = heuristic(start, end);
+
+  while (openSet.size > 0) {
+    // Get node with lowest fScore
+    let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+
+    if (current === end) break;
+
+    openSet.delete(current);
+
+    for (const neighbor of graph[current] || []) {
+      const edgeKey = `${current}->${neighbor.node}`;
+      if (blockedSet.has(edgeKey)) continue;
+
+      const tentativeG = distances[current] + neighbor.dist;
+      if (tentativeG < distances[neighbor.node]) {
+        distances[neighbor.node] = tentativeG;
+        previous[neighbor.node] = current;
+        fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
+        openSet.add(neighbor.node);
       }
     }
-
-    const path = [];
-    let curr = end;
-    while (previous[curr]) {
-      path.unshift(curr);
-      curr = previous[curr];
-    }
-    if (curr === start) {
-      path.unshift(start);
-      return path;
-    }
-    return [];
   }
+
+  // Reconstruct path
+  const path = [];
+  let curr = end;
+  while (previous[curr]) {
+    path.unshift(curr);
+    curr = previous[curr];
+  }
+  if (curr === start) {
+    path.unshift(start);
+    return path;
+  }
+  return [];
+}
+
+function heuristic(nodeA, nodeB) {
+  const [lat1, lon1] = nodeA.split(',').map(Number);
+  const [lat2, lon2] = nodeB.split(',').map(Number);
+  const from = turf.point([lon1, lat1]);
+  const to = turf.point([lon2, lat2]);
+  return turf.distance(from, to); // Returns distance in kilometers
+}
+  
 
   // Create a Turf LineString from a route path
   function pathToLine(path) {
     return turf.lineString(path.map(p => p.split(',').map(Number)));
   }
 
-  const firstPath = dijkstraWithBlockedEdges([]);
+  const firstPath = aStarWithBlockedEdges([]);
   if (!firstPath.length) return allPaths;
   allPaths.push(firstPath);
   visitedPaths.add(firstPath.join('->'));
@@ -375,7 +398,7 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
   }
 
   for (const edge of turnEdges) {
-    const newPath = dijkstraWithBlockedEdges([edge]);
+    const newPath = aStarWithBlockedEdges([edge]);
     const pathStr = newPath.join('->');
 
     if (!newPath.length || visitedPaths.has(pathStr)) continue;
