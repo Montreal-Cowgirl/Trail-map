@@ -121,14 +121,50 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
+  function removeAccents(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  
+  function matchesAllowedTrailType(typeStr) {
+    const normalized = removeAccents(typeStr || "").toLowerCase();
+  
+    return (
+      normalized.includes("saison") ||
+      normalized.includes("ete") || normalized.includes("etes") ||
+      normalized.includes("hiver") || normalized.includes("hivers")
+    );
+  }
+
+  
+  function filterTrailData(data) {
+    return {
+      type: "FeatureCollection",
+      features: data.features.filter(f =>
+        f.geometry.type === 'LineString' &&
+        matchesAllowedTrailType(f.properties.trailType)
+      )
+    };
+  }
+
+
+  
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
     trailData = data;
-    L.geoJSON(data, { color: 'blue' }).addTo(map);
-    buildGraph(data);
-    connectNearbySegments(data, 25);
+    const filteredData = filterTrailData(data);
+
+    L.geoJSON(filteredData, {
+      style: feature => ({
+        color: 'blue',
+        weight: 3
+      })
+    }).addTo(map);
+
+    buildGraph(filteredData);
+    connectNearbySegments(filteredData, 25);
   });
+
 
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
