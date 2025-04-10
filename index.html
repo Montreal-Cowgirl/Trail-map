@@ -271,6 +271,21 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const a = coords[i];
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
+        console.log('🧪 Testing line segment:', line);
+        
+        if (!Array.isArray(line.geometry.coordinates[0]) || !Number.isFinite(line.geometry.coordinates[0][0])) {
+          console.error('❌ Invalid line segment:', line);
+          return;
+        }
+        
+        const dist = turf.pointToLineDistance(turf.point([lng, lat]), line, { units: 'kilometers' });
+        const line = turf.lineString([a, b]);
+        console.log('🧪 Testing line segment:', line);
+        
+        if (!Array.isArray(line.geometry.coordinates[0]) || !Number.isFinite(line.geometry.coordinates[0][0])) {
+          console.error('❌ Invalid line segment:', line);
+          return;
+        }
         const [lng, lat] = snappedPoint.geometry.coordinates;
         console.log('🛠️ DEBUG: snappedPoint.geometry.coordinates =', snappedPoint.geometry.coordinates);
         console.log('🛠️ DEBUG: lng =', lng, 'lat =', lat);
