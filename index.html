@@ -566,6 +566,10 @@ map.on("click", e => {
     const startKey = addTemporaryNodeToGraph(snappedStart, graph);
     const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
 
+    // ✅ Make sure the keys are stored on the markers
+    startMarker.key = startKey;
+    endMarker.key = endKey;
+
     // Logging graph structure
     console.log("📌 Checking graph connectivity for start and end:");
     console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
@@ -585,7 +589,6 @@ map.on("click", e => {
       nodeCoords[endKey] = snappedEndCoords;
     }
 
-    // Compute path
     const path = dijkstra(startKey, endKey);
 
     if (path.length > 0) {
