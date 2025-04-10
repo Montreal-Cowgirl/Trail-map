@@ -22,22 +22,12 @@
     .route-option:hover {
       background: #d0d0d0;
     }
-    #season-select {
-      margin: 1rem 0;
-    }
   </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="info">
-  <label for="season-select"><strong>Trail Filter:</strong></label>
-  <select id="season-select">
-    <option value="auto">Auto (Based on Date)</option>
-    <option value="summer">Summer Mode</option>
-    <option value="winter">Winter Mode</option>
-    <option value="all">All Trails</option>
-  </select><br/>
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
@@ -46,696 +36,279 @@
 </div>
 
 <script>
-let trailLayer = null;
-let trailLayerGroup = null;
-let graph = {}, nodeCoords = {}, geojsonData;
-const map = L.map('map').setView([46.8, -71.2], 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
-let startMarker = null;
-let endMarker = null;
-let userLocation = null;
-let routeLayers = [];
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let trailData, graph = {}, nodeCoords = {};
+let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
+let userMarker, routeLine;
+let previewLines = [];
+
+function coordKey(coord) {
+  return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
+}
 
 function addEdge(a, b, dist) {
   if (!graph[a]) graph[a] = [];
   graph[a].push({ node: b, dist });
 }
 
-function coordKey(coord) {
-  if (!Array.isArray(coord) || coord.length < 2 || coord[0] == null || coord[1] == null) {
-    console.error('Invalid coord passed to coordKey:', coord);
-    return 'invalid_coord';
-  }
-  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
-}
-
-function getAllowedSeasonKeywords(mode = "auto") {
-  if (mode === "all") return null;
-  const keywords = ["saison"];
-  if (mode === "summer") {
-    keywords.push("été");
-  } else if (mode === "winter") {
-    keywords.push("hiver");
-  } else {
-    const now = new Date();
-    const month = now.getMonth();
-    const date = now.getDate();
-    const isWinter = (month === 11 && date >= 21) || (month <= 2) || (month === 3 && date <= 30);
-    keywords.push(isWinter ? "hiver" : "été");
-  }
-  return keywords;
-}
-
-function normalize(str) {
-  return str.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-}
-
-function hasSeasonKeyword(name, allowedKeywords) {
-  if (!allowedKeywords) return true;
-  const normName = normalize(name || "");
-  return allowedKeywords.some(kw => normName.includes(normalize(kw)));
-}
-
-function buildGraph(data, seasonMode = "auto") {
-  console.log("🔧 Building graph for season mode:", seasonMode);
-  graph = {};
-
-  const allowedKeywords = getAllowedSeasonKeywords(seasonMode);
-  let skipped = 0;
-  let endpoints = [];
-
-  data.features.forEach(feature => {
-    const name = feature.properties.name || feature.properties.NOM || "";
-    if (!hasSeasonKeyword(name, allowedKeywords)) {
-      skipped++;
-      return;
-    }
-
-    const coords = feature.geometry.coordinates;
-    for (let i = 0; i < coords.length - 1; i++) {
-      const a = coords[i], b = coords[i + 1];
-      const dist = turf.distance(turf.point(a), turf.point(b));
-
-      const keyA = a.join(","), keyB = b.join(",");
-      if (!graph[keyA]) graph[keyA] = [];
-      if (!graph[keyB]) graph[keyB] = [];
-
-      graph[keyA].push({ node: keyB, dist });
-      graph[keyB].push({ node: keyA, dist });
-    }
-
-    // Collect start and end points for connectivity fix
-    if (coords.length >= 2) {
-      endpoints.push(turf.point(coords[0]));
-      endpoints.push(turf.point(coords[coords.length - 1]));
-    }
-  });
-
-  // Fix: Ensure endpoints are connected if close enough
-  const endpointPairs = turf.featureCollection(endpoints);
-  for (let i = 0; i < endpoints.length; i++) {
-    for (let j = i + 1; j < endpoints.length; j++) {
-      const ptA = endpoints[i], ptB = endpoints[j];
-      const d = turf.distance(ptA, ptB, { units: 'kilometers' });
-
-      if (d < 0.01) { // ~10 meters
-        const keyA = ptA.geometry.coordinates.join(",");
-        const keyB = ptB.geometry.coordinates.join(",");
-
-        if (keyA !== keyB) {
-          const dist = d;
-          if (!graph[keyA]) graph[keyA] = [];
-          if (!graph[keyB]) graph[keyB] = [];
-
-          graph[keyA].push({ node: keyB, dist });
-          graph[keyB].push({ node: keyA, dist });
-        }
-      }
-    }
-  }
-
-  console.log(`✅ Graph built with ${Object.keys(graph).length} connections and ${skipped} skipped features.`);
-
-  // 🧪 Check connectivity of all features after graph construction
+function buildGraph(data) {
   data.features.forEach(f => {
-    if (f.geometry.type === "LineString" && f.properties?.id != null) {
-      debugFeatureConnectivity(f.properties.id);
-    }
-  });
-
-  countConnectedComponents(); // 🧭 Check how many separate graph components exist
-}
-
-function countConnectedComponents() {
-  const visited = new Set();
-  let components = 0;
-
-  for (const node in graph) {
-    if (!visited.has(node)) {
-      components++;
-      const stack = [node];
-
-      while (stack.length > 0) {
-        const current = stack.pop();
-        if (!visited.has(current)) {
-          visited.add(current);
-          const neighbors = graph[current] ?? [];
-          for (const neighbor of neighbors) {
-            if (!visited.has(neighbor.node)) {
-              stack.push(neighbor.node);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  console.log(`🌐 Graph contains ${components} connected component(s).`);
-}
-
-  
-// ✅ Add debug function here
-function debugFeatureConnectivity(featureId) {
-  const feature = geojsonData.features.find(f => f.properties?.id == featureId);
-  if (!feature) {
-    console.warn("❌ Feature ID", featureId, "not found");
-    return;
-  }
-
-  const coords = feature.geometry.coordinates;
-  let connectedPairs = 0;
-  let totalPairs = coords.length - 1;
-
-  for (let i = 0; i < totalPairs; i++) {
-    const a = coords[i];
-    const b = coords[i + 1];
-    const aKey = coordKey(a);
-    const bKey = coordKey(b);
-
-    const aConnections = graph[aKey]?.map(conn => conn.node) ?? [];
-
-    if (aConnections.includes(bKey)) {
-      connectedPairs++;
-    } else {
-      console.warn(`🚫 Feature ${featureId}: Missing connection between [${aKey}] ➡ [${bKey}]`);
-    }
-  }
-
-  console.log(`✅ Feature ${featureId}: ${connectedPairs}/${totalPairs} segments connected.`);
-}
-
-
-  
-
-function traverseGraphFrom(startKey, graph) {
-  const visited = new Set();
-  const queue = [startKey];
-  while (queue.length > 0) {
-    const node = queue.shift();
-    if (visited.has(node)) continue;
-    visited.add(node);
-    for (let neighbor of (graph[node] || [])) {
-      queue.push(neighbor.node);
-    }
-  }
-  return visited;
-}
-
-
-
-function displayFilteredTrails() {
-  // Remove old trail layer if it exists
-  if (trailLayerGroup) {
-    map.removeLayer(trailLayerGroup);
-  }
-
-  const allowedKeywords = getAllowedSeasonKeywords(document.getElementById('season-select').value);
-
-  const visibleFeatures = geojsonData.features.filter(f => {
-    const name = f.properties.name || f.properties.NOM || "";
-    return hasSeasonKeyword(name, allowedKeywords); // ✅ Apply filtering here
-  });
-
-  trailLayerGroup = L.geoJSON({ type: 'FeatureCollection', features: visibleFeatures }, {
-    style: {
-      color: "#3388ff",
-      weight: 3
-    }
-  }).addTo(map);
-}
-
-
-function renderGeoJson(data, allowedKeywords) {
-  if (window.trailsLayer) map.removeLayer(window.trailsLayer);
-  window.trailsLayer = L.geoJSON(data, {
-    filter: f => {
-      const name = f.properties.name || f.properties.NOM || "";
-      return hasSeasonKeyword(name, allowedKeywords);
-    },
-    style: { color: 'blue', weight: 3 }
-  }).addTo(map);
-}
-
-function generateDirections(path) {
-  console.log("Generating directions for path of length:", path.length);
-  const instructions = [];
-  for (let i = 1; i < path.length - 1; i++) {
-    const prevCoord = nodeCoords[path[i - 1]];
-    const currCoord = nodeCoords[path[i]];
-    const nextCoord = nodeCoords[path[i + 1]];
-
-    const prev = turf.point(prevCoord);
-    const curr = turf.point(currCoord);
-    const next = turf.point(nextCoord);
-
-    const angle1 = turf.bearing(prev, curr);
-    const angle2 = turf.bearing(curr, next);
-    let angle = Math.abs(angle2 - angle1);
-    if (angle > 180) angle = 360 - angle;
-
-    if (angle > 30) {
-      const turn = angle2 > angle1 ? "right" : "left";
-      const segmentDistance = turf.distance(curr, next, { units: 'kilometers' });
-      const roundedDistance = (segmentDistance * 1000).toFixed(0);
-      instructions.push(`In ${roundedDistance} meters, turn ${turn}`);
-    }
-  }
-  const dirList = document.getElementById("directions");
-  dirList.innerHTML = "";
-  instructions.forEach(txt => {
-    const li = document.createElement("li");
-    li.textContent = txt;
-    dirList.appendChild(li);
-  });
-  return instructions;
-}
-
-function findNearestNode(latlng) {
-  let nearest = null, minDist = Infinity;
-  for (let key in nodeCoords) {
-    const coord = nodeCoords[key];
-    const dist = turf.distance(turf.point([latlng.lng, latlng.lat]), turf.point(coord));
-    if (dist < minDist) {
-      minDist = dist;
-      nearest = key;
-    }
-  }
-  console.log("Nearest node to", latlng, "is", nearest, "at distance", minDist);
-  return nearest;
-}
-
-
-function addTemporaryNodeToGraph(snappedPoint) {
-  const [lng, lat] = snappedPoint.geometry.coordinates;
-  console.log('🛠️ DEBUG: snappedPoint.geometry.coordinates =', snappedPoint.geometry.coordinates);
-  console.log('🛠️ DEBUG: lng =', lng, 'lat =', lat);
-
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-    console.error('❌ Invalid snappedPoint coords! Aborting turf.point()');
-    return;
-  }
-
-  const tempKey = coordKey([lng, lat]);
-  let closestSegment = null;
-  let minDist = Infinity;
-  let maxAcceptableDist = 0.01;
-  let featureID = null;
-
-  geojsonData.features.forEach((f, index) => {
-    if (f.geometry.type === "LineString") {
+    if (f.geometry.type === 'LineString') {
       const coords = f.geometry.coordinates;
       for (let i = 0; i < coords.length - 1; i++) {
-        const a = coords[i];
-        const b = coords[i + 1];
-        const line = turf.lineString([a, b]);
-
-        const dist = turf.pointToLineDistance(
-          turf.point([lng, lat]),
-          line,
-          { units: 'kilometers' }
-        );
-
-        if (dist < minDist) {
-          minDist = dist;
-          closestSegment = { a, b };
-          featureID = f.properties?.id ?? index;
-        }
+        const a = coordKey(coords[i]);
+        const b = coordKey(coords[i + 1]);
+        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+        addEdge(a, b, dist);
+        addEdge(b, a, dist);
+        nodeCoords[a] = coords[i];
+        nodeCoords[b] = coords[i + 1];
       }
     }
   });
-
-  if (!closestSegment || minDist > maxAcceptableDist) {
-    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
-    alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
-    return null;
-  }
-
-  console.log("Start or end snapped to segment in feature ID:", featureID);
-
-  const { a, b } = closestSegment;
-  const aKey = coordKey(a);
-  const bKey = coordKey(b);
-
-  if (!nodeCoords[aKey]) nodeCoords[aKey] = a;
-  if (!nodeCoords[bKey]) nodeCoords[bKey] = b;
-  
-  const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
-  const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
-
-  graph[tempKey] = [
-    { node: aKey, dist: distToA },
-    { node: bKey, dist: distToB }
-  ];
-
-  if (!graph[aKey]) graph[aKey] = [];
-  if (!graph[bKey]) graph[bKey] = [];
-
-  graph[aKey].push({ node: tempKey, dist: distToA });
-  graph[bKey].push({ node: tempKey, dist: distToB });
-
-  nodeCoords[tempKey] = [lng, lat];
-
-  console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
-  return tempKey;
 }
 
-
-  function addSnappedPointToGraph(latlng) {
-  const pt = turf.point([latlng.lng, latlng.lat]);
-  let minDist = Infinity;
-  let snappedCoord = null;
-  let segmentEnds = [];
-
-geojsonData.features.forEach((f, index) => {
-  if (f.geometry.type === "LineString") {
-    const line = turf.lineString(f.geometry.coordinates);
-    const snapped = turf.nearestPointOnLine(line, pt);
-
-    if (snapped.properties.dist < minDist) {
-      minDist = snapped.properties.dist;
-      snappedCoord = snapped.geometry.coordinates;
-
-      const segIndex = snapped.properties.index;
-      const coords = f.geometry.coordinates;
-      if (segIndex < coords.length - 1) {
-        segmentEnds = [coords[segIndex], coords[segIndex + 1]];
-      }
-
-      featureID = f.properties?.id ?? index;
-    }
-  }
-});
-
-if (!snappedCoord || segmentEnds.length !== 2) {
-  console.warn("Snapping failed.");
-  return null;
-}
-
-console.log("Start or end snapped to segment in feature ID:", featureID);
-
-const keySnapped = coordKey(snappedCoord);
-nodeCoords[keySnapped] = snappedCoord;
-
-const [a, b] = segmentEnds;
-const keyA = coordKey(a);
-const keyB = coordKey(b);
-
-const distA = turf.distance(turf.point(a), turf.point(snappedCoord));
-const distB = turf.distance(turf.point(b), turf.point(snappedCoord));
-
-addEdge(keyA, keySnapped, distA);
-addEdge(keySnapped, keyA, distA);
-addEdge(keyB, keySnapped, distB);
-addEdge(keySnapped, keyB, distB);
-
-return keySnapped;
-
-}
-//const reachable = traverseGraphFrom(startKey);
-//console.log("🌐 Reachable nodes from startKey:", reachable.size);
-//console.log("🔎 Does it include endKey?", reachable.has(endKey));
-
-
-function dijkstra(startKey, endKey) {
-  // Debug: Log graph connectivity of start and end
-  console.log("📌 Checking graph connectivity for start and end:");
-  console.log(`StartKey: ${startKey}, Exists: ${graph[startKey] !== undefined}, Connections:`, graph[startKey]);
-  console.log(`EndKey: ${endKey}, Exists: ${graph[endKey] !== undefined}, Connections:`, graph[endKey]);
-  console.log("Running Dijkstra from", startKey, "to", endKey);
-
-  const dist = {}, prev = {}, visited = new Set();
-  dist[startKey] = 0;
-
-  let iterations = 0, maxIterations = 20000;
-  const queue = new Set([startKey]);
-
-  while (queue.size > 0 && iterations++ < maxIterations) {
-    let u = null;
-    let minDist = Infinity;
-
-    for (let node of queue) {
-      if (dist[node] < minDist) {
-        minDist = dist[node];
-        u = node;
-      }
-    }
-
-    if (!u) break;
-    queue.delete(u);
-
-    if (iterations % 1000 === 0) {
-      console.log(`Iteration ${iterations}, visiting ${u}, dist=${dist[u]}`);
-    }
-
-    if (u === endKey) break;
-
-    visited.add(u);
-    for (let neighbor of (graph[u] || [])) {
-      if (visited.has(neighbor.node)) continue;
-      const alt = dist[u] + neighbor.dist;
-      if (alt < (dist[neighbor.node] || Infinity)) {
-        dist[neighbor.node] = alt;
-        prev[neighbor.node] = u;
-        queue.add(neighbor.node);
-      }
-    }
-  }
-
-  if (iterations >= maxIterations) {
-    console.warn("❌ Dijkstra aborted: too many iterations or disconnected graph.");
-    alert("⚠️ Route search failed: too many steps. This might be due to disconnected trails.");
-    return [];
-  }
-
-  // ✅ Declare the path array before using it
-  const path = [];
-  let u = endKey;
-  while (u) {
-    path.unshift(u);
-    u = prev[u];
-  }
-
-  if (path[0] !== startKey) {
-    console.warn("❌ No path could be reconstructed from", startKey, "to", endKey);
-    alert("⚠️ Unable to reconstruct route. Trails might be disconnected.");
-    return [];
-  }
-
-  console.log("✅ Dijkstra finished. Path length:", path.length);
-  return path;
-}
-
-
-
-function drawRoute(path) {
-  console.log("🖊️ Drawing route with", path.length, "points.");
-  
-  // Clear previous route layers
-  routeLayers.forEach(l => map.removeLayer(l));
-  routeLayers = [];
-
-  const coords = path.map(k => {
-    const coord = nodeCoords[k];
-
-    if (!coord) {
-      console.warn("⚠️ Missing nodeCoords for key:", k);
-      return null;
-    }
-
-    // Normalize to [lat, lng] format for Leaflet
-    if (Array.isArray(coord)) {
-      const [lng, lat] = coord;
-      return [lat, lng];
-    }
-
-    if (coord.type === "Point" && Array.isArray(coord.coordinates)) {
-      const [lng, lat] = coord.coordinates;
-      return [lat, lng];
-    }
-
-    console.warn("⚠️ Invalid coordinate format for key:", k, "→", coord);
-    return null;
-  }).filter(Boolean);
-
-  console.log("🧭 Route coordinates:", coords);
-
-  if (coords.length < 2) {
-    console.warn("⚠️ Not enough valid coordinates to draw route.");
-    return;
-  }
-
-  // Draw the route
-  const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
-  routeLayers.push(line);
-
-  // Distance and estimated time
-  const totalDist = coords.reduce((sum, _, i) => {
-    if (i === 0) return 0;
-    return sum + turf.distance(
-      turf.point([coords[i - 1][1], coords[i - 1][0]]),
-      turf.point([coords[i][1], coords[i][0]])
-    );
-  }, 0);
-
-  document.getElementById("distance").textContent = totalDist.toFixed(2);
-  document.getElementById("time").textContent = Math.round((totalDist / 5) * 60); // 5 km/h
-}
-
-
-
-
-map.on("click", e => {
-  console.log("Map clicked at", e.latlng);
-
-  const clickPoint = turf.point([e.latlng.lng, e.latlng.lat]);
-  const allowedKeywords = getAllowedSeasonKeywords(document.getElementById('season-select').value);
-
-  let minDist = Infinity;
-  let snappedPoint = null;
-
-  // Step 1: Filter features by season and snap click to nearest trail
-  const filteredFeatures = geojsonData.features.filter(f => {
-    const name = f.properties.name || f.properties.NOM || "";
-    return hasSeasonKeyword(name, allowedKeywords);
-  });
-
-  filteredFeatures.forEach(f => {
+function connectNearbySegments(data, threshold = 25) {
+  const lineSegments = [];
+  data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
-      const line = turf.lineString(f.geometry.coordinates);
-      const candidate = turf.nearestPointOnLine(line, clickPoint, { units: 'kilometers' });
-      const dist = turf.pointToLineDistance(clickPoint, line, { units: 'kilometers' });
-
-      if (dist < minDist) {
-        minDist = dist;
-        snappedPoint = candidate;
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        lineSegments.push([coords[i], coords[i + 1]]);
       }
     }
   });
 
-  if (!snappedPoint) {
-    alert("❌ No nearby trail segment found.");
-    return;
-  }
-
-  const snappedLatLng = L.latLng(
-    snappedPoint.geometry.coordinates[1],
-    snappedPoint.geometry.coordinates[0]
-  );
-
-  // CASE 1: Set Start Marker
-  if (!startMarker) {
-    startMarker = L.marker(snappedLatLng, {
-      draggable: false,
-      icon: L.icon({
-        iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
-      })
-    }).addTo(map);
-
-    const startKey = addSnappedPointToGraph(snappedLatLng);
-    if (!startKey) return;
-    startMarker.key = startKey;
-
-  // CASE 2: Set End Marker and Calculate Route
-  } else if (!endMarker) {
-  endMarker = L.marker(snappedLatLng, {
-    draggable: false,
-    icon: L.icon({
-      iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    })
-  }).addTo(map);
-
-  // Snap both markers to the current filtered trail network
-  const snappedStart = turf.nearestPointOnLine(
-    turf.featureCollection(filteredFeatures),
-    turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat])
-  );
-  const snappedEnd = turf.nearestPointOnLine(
-    turf.featureCollection(filteredFeatures),
-    turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat])
-  );
-
-  const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
-  const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
-
-  // 🔧 FIXED: Get startKey from the existing marker
-  const startKey = startMarker.key;
-  const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
-
-  // Logging graph structure
-  console.log("📌 Checking graph connectivity for start and end:");
-  console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
-  console.log("EndKey:", endKey, "Exists:", !!graph[endKey], "Connections:", graph[endKey]);
-
-  const reachable = traverseGraphFrom(startKey, graph);
-  console.log("🌐 Reachable nodes from startKey:", reachable.size);
-  console.log("🔎 Does it include endKey?", reachable.has(endKey));
-
-  // Add to graph if needed
-  if (!graph[startKey]) {
-    graph[startKey] = findNearestGraphConnections(snappedStartCoords);
-    nodeCoords[startKey] = snappedStartCoords;
-  }
-  if (!graph[endKey]) {
-    graph[endKey] = findNearestGraphConnections(snappedEndCoords);
-    nodeCoords[endKey] = snappedEndCoords;
-  }
-
-  // Compute path
-  const path = dijkstra(startKey, endKey);
-
-  if (path.length > 0) {
-    drawRoute(path);
-  } else {
-    alert("No path found.");
-    console.warn("No path found between", startKey, "and", endKey);
+  for (let i = 0; i < lineSegments.length; i++) {
+    for (let j = i + 1; j < lineSegments.length; j++) {
+      const line1 = turf.lineString(lineSegments[i]);
+      const line2 = turf.lineString(lineSegments[j]);
+      const dist = turf.pointToLineDistance(
+        turf.midpoint(line1.geometry.coordinates[0], line1.geometry.coordinates[1]),
+        line2,
+        { units: 'meters' }
+      );
+      if (dist <= threshold) {
+        const pt1 = turf.nearestPointOnLine(line2, turf.midpoint(...line1.geometry.coordinates));
+        const pt2 = turf.nearestPointOnLine(line1, turf.midpoint(...line2.geometry.coordinates));
+        const a = coordKey(pt1.geometry.coordinates);
+        const b = coordKey(pt2.geometry.coordinates);
+        const distBetween = turf.distance(pt1, pt2, { units: 'kilometers' });
+        nodeCoords[a] = pt1.geometry.coordinates;
+        nodeCoords[b] = pt2.geometry.coordinates;
+        addEdge(a, b, distBetween);
+        addEdge(b, a, distBetween);
+      }
+    }
   }
 }
 
-  // CASE 3: Reset for next route
-   else {
-    map.removeLayer(startMarker);
-    map.removeLayer(endMarker);
-    startMarker = null;
-    endMarker = null;
-    routeLayers.forEach(l => map.removeLayer(l));
-    routeLayers = [];
-    document.getElementById("distance").textContent = "-";
-    document.getElementById("time").textContent = "-";
-    document.getElementById("directions").innerHTML = "";
-  }
-});
-
-
-
-navigator.geolocation.getCurrentPosition(pos => {
-  userLocation = [pos.coords.latitude, pos.coords.longitude];
-  L.marker(userLocation).addTo(map).bindPopup("You are here").openPopup();
-  map.setView(userLocation, 14);
-});
+function findClosestNode(latLng) {
+  let minDist = Infinity, closestNode = null, threshold = 100;
+  Object.keys(nodeCoords).forEach(key => {
+    const nodeLatLng = L.latLng(nodeCoords[key][1], nodeCoords[key][0]);
+    const dist = latLng.distanceTo(nodeLatLng);
+    if (dist < minDist && dist <= threshold) {
+      minDist = dist;
+      closestNode = key;
+    }
+  });
+  return closestNode;
+}
 
 fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
-    geojsonData = data;
-    const dropdown = document.getElementById('season-select');
+    trailData = data;
+    L.geoJSON(data, { color: 'blue' }).addTo(map);
+    buildGraph(data);
+    connectNearbySegments(data, 25);
+  });
 
-    dropdown.addEventListener('change', () => {
-      console.log("Season dropdown changed to:", dropdown.value);
-      buildGraph(geojsonData, dropdown.value);
-      displayFilteredTrails(); // <--- ADDED: redraw visible trails
-    });
+map.on('click', function (e) {
+  const snapped = findClosestNode(e.latlng);
+  if (!snapped) return alert("No nearby trail found.");
+  const snappedLatLng = L.latLng(nodeCoords[snapped][1], nodeCoords[snapped][0]);
 
-    buildGraph(data, dropdown.value);   // build routing graph
-    displayFilteredTrails();            // <--- ADDED: draw trails initially
-  })
-  .catch(err => console.error("Failed to load map data:", err));
+  const greenIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+  });
+  const redIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+  });
 
-  
+  if (clickCount === 0) {
+    if (startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker(snappedLatLng, { icon: greenIcon }).addTo(map);
+    startNode = snapped;
+    clickCount++;
+  } else {
+    if (endMarker) map.removeLayer(endMarker);
+    endMarker = L.marker(snappedLatLng, { icon: redIcon }).addTo(map);
+    endNode = snapped;
+    clickCount = 0;
+    const routes = findMultipleRoutes(startNode, endNode, 3);
+    if (!routes || routes.length === 0) return alert("No path found.");
+    renderRouteOptions(routes);
+  }
+});
+
+function findMultipleRoutes(start, end, numRoutes = 3) {
+  const allPaths = [], visitedPaths = new Set();
+
+  function getAngle(p1, p2, p3) {
+    const [lat1, lon1] = p1.split(',').map(Number);
+    const [lat2, lon2] = p2.split(',').map(Number);
+    const [lat3, lon3] = p3.split(',').map(Number);
+    const v1 = [lat2 - lat1, lon2 - lon1], v2 = [lat3 - lat2, lon3 - lon2];
+    const dot = v1[0]*v2[0] + v1[1]*v2[1];
+    const mag1 = Math.hypot(...v1), mag2 = Math.hypot(...v2);
+    return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
+  }
+
+  function dijkstraWithBlockedEdges(blockedEdges) {
+    const distances = {}, previous = {}, pq = new Set(Object.keys(graph));
+    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+    Object.keys(graph).forEach(n => distances[n] = Infinity);
+    distances[start] = 0;
+
+    while (pq.size > 0) {
+      let current = [...pq].reduce((a, b) => distances[a] < distances[b] ? a : b);
+      if (current === end) break;
+      pq.delete(current);
+      for (const neighbor of graph[current] || []) {
+        const edgeKey = `${current}->${neighbor.node}`;
+        if (blockedSet.has(edgeKey)) continue;
+        const alt = distances[current] + neighbor.dist;
+        if (alt < distances[neighbor.node]) {
+          distances[neighbor.node] = alt;
+          previous[neighbor.node] = current;
+        }
+      }
+    }
+
+    const path = [];
+    let curr = end;
+    while (previous[curr]) {
+      path.unshift(curr);
+      curr = previous[curr];
+    }
+    if (curr === start) {
+      path.unshift(start);
+      return path;
+    }
+    return [];
+  }
+
+  const firstPath = dijkstraWithBlockedEdges([]);
+  if (!firstPath.length) return allPaths;
+  allPaths.push(firstPath);
+  visitedPaths.add(firstPath.join('->'));
+
+  const turnEdges = [];
+  for (let i = 1; i < firstPath.length - 1; i++) {
+    const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
+    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
+  }
+
+  for (const edge of turnEdges) {
+    const newPath = dijkstraWithBlockedEdges([edge]);
+    const pathStr = newPath.join('->');
+    if (newPath.length && !visitedPaths.has(pathStr)) {
+      allPaths.push(newPath);
+      visitedPaths.add(pathStr);
+      if (allPaths.length >= numRoutes) break;
+    }
+  }
+
+  return allPaths;
+}
+
+function renderRouteOptions(routes) {
+  const routeOptionsDiv = document.getElementById('route-options');
+  routeOptionsDiv.innerHTML = '';
+  previewLines.forEach(line => map.removeLayer(line));
+  previewLines = [];
+
+  routes.forEach((route, idx) => {
+    const routeCoords = route.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
+    const totalDist = route.reduce((sum, node, i) => {
+      if (i < route.length - 1) {
+        return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[route[i + 1]]));
+      }
+      return sum;
+    }, 0);
+
+    const colors = ['orange', 'purple', 'hotpink'];
+    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5, 5' }).addTo(map);
+    previewLines.push(line);
+
+    const routeOption = document.createElement('div');
+    routeOption.classList.add('route-option');
+    routeOption.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
+
+    routeOption.onclick = () => {
+      previewLines.forEach(line => map.removeLayer(line));
+      renderRoute(route);
+      renderDirections(route);
+    };
+
+    routeOptionsDiv.appendChild(routeOption);
+  });
+}
+
+function renderRoute(path) {
+  const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+}
+
+function renderDirections(path) {
+  const directionsList = document.getElementById('directions');
+  directionsList.innerHTML = '';
+  let totalDistance = 0, prevBearing = null, distanceSinceLastTurn = 0;
+
+  path.forEach((node, idx) => {
+    if (idx < path.length - 1) {
+      const from = nodeCoords[node], to = nodeCoords[path[idx + 1]];
+      const dist = turf.distance(turf.point(from), turf.point(to));
+      totalDistance += dist;
+      distanceSinceLastTurn += dist;
+      const bearing = turf.bearing(turf.point(from), turf.point(to));
+      if (prevBearing !== null) {
+        let angleChange = bearing - prevBearing;
+        if (angleChange > 180) angleChange -= 360;
+        if (angleChange < -180) angleChange += 360;
+        const absChange = Math.abs(angleChange);
+        if (absChange > 25) {
+          let direction = '';
+          if (absChange > 135) direction = 'Make a U-turn';
+          else if (absChange > 90) direction = angleChange > 0 ? 'Turn sharply right' : 'Turn sharply left';
+          else if (absChange > 30) direction = angleChange > 0 ? 'Turn right' : 'Turn left';
+          else direction = angleChange > 0 ? 'Slight right' : 'Slight left';
+
+          const li = document.createElement('li');
+          li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
+          directionsList.appendChild(li);
+          distanceSinceLastTurn = 0;
+        }
+      }
+      prevBearing = bearing;
+    }
+  });
+
+  document.getElementById('distance').textContent = totalDistance.toFixed(2);
+  document.getElementById('time').textContent = Math.round(totalDistance * 12);
+}
 </script>
 
 </body>
