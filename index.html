@@ -250,6 +250,7 @@ trailFilterSelect.addEventListener('change', () => {
 });
 
 let clickState = 0;
+let trailLine;
   
 map.on('click', function (e) {
   const latlng = e.latlng;
@@ -270,6 +271,11 @@ map.on('click', function (e) {
     startNode = null;
     endNode = null;
     clickState = 0;
+    return;
+  }
+
+    if (!trailLine) {
+    console.warn("Trail line not loaded yet.");
     return;
   }
 
@@ -476,8 +482,12 @@ fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
     originalTrailData = data;
+    trailLine = turf.lineString(
+      data.features.flatMap(f => f.geometry.coordinates)
+    );
     updateTrailDisplay('all'); // initial render
   });
+
 
 </script>
 
