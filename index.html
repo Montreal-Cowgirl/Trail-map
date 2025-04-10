@@ -170,27 +170,33 @@ function buildGraph(data, seasonMode = "auto") {
 function debugFeatureConnectivity(featureId) {
   const feature = geojsonData.features.find(f => f.properties?.id == featureId);
   if (!feature) {
-    console.warn("Feature ID", featureId, "not found");
+    console.warn("❌ Feature ID", featureId, "not found");
     return;
   }
 
   const coords = feature.geometry.coordinates;
   let connectedPairs = 0;
+  let totalPairs = coords.length - 1;
 
-  for (let i = 0; i < coords.length - 1; i++) {
-    const aKey = coordKey(coords[i]);
-    const bKey = coordKey(coords[i + 1]);
+  for (let i = 0; i < totalPairs; i++) {
+    const a = coords[i];
+    const b = coords[i + 1];
+    const aKey = coordKey(a);
+    const bKey = coordKey(b);
 
     const aConnections = graph[aKey]?.map(conn => conn.node) ?? [];
+
     if (aConnections.includes(bKey)) {
       connectedPairs++;
     } else {
-      console.warn(`🚫 Missing connection between ${aKey} and ${bKey}`);
+      console.warn(`🚫 Feature ${featureId}: Missing connection between [${aKey}] ➡ [${bKey}]`);
     }
   }
 
-  console.log(`✅ Feature ${featureId} has ${connectedPairs} connected segments out of ${coords.length - 1}`);
+  console.log(`✅ Feature ${featureId}: ${connectedPairs}/${totalPairs} segments connected.`);
 }
+
+
   
 
 function traverseGraphFrom(startKey, graph) {
