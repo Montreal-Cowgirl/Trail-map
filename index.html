@@ -386,6 +386,7 @@ function dijkstra(startKey, endKey) {
   console.log(`StartKey: ${startKey}, Exists: ${graph[startKey] !== undefined}, Connections:`, graph[startKey]);
   console.log(`EndKey: ${endKey}, Exists: ${graph[endKey] !== undefined}, Connections:`, graph[endKey]);
   console.log("Running Dijkstra from", startKey, "to", endKey);
+
   const dist = {}, prev = {}, visited = new Set();
   dist[startKey] = 0;
 
@@ -430,6 +431,8 @@ function dijkstra(startKey, endKey) {
     return [];
   }
 
+  // ✅ Declare the path array before using it
+  const path = [];
   let u = endKey;
   while (u) {
     path.unshift(u);
@@ -445,6 +448,7 @@ function dijkstra(startKey, endKey) {
   console.log("✅ Dijkstra finished. Path length:", path.length);
   return path;
 }
+
 
 
 function drawRoute(path) {
