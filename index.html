@@ -57,8 +57,8 @@ let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
-
-let originalTrailData, filteredLayer;
+let originalTrailData = null;
+let filteredLayer = null;
 let graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
 let routeLine, previewLines = [];
@@ -128,7 +128,38 @@ function connectNearbySegments(data, threshold = 25) {
     }
   }
 }
+function updateTrailDisplay(mode) {
+  if (filteredLayer) map.removeLayer(filteredLayer);
+  graph = {};
+  nodeCoords = {};
 
+  const filtered = {
+    type: "FeatureCollection",
+    features: originalTrailData.features.filter(f => {
+      const rawName = f.properties.name || "";
+      const name = rawName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      const hasEte = name.includes("ete");
+      const hasHiver = name.includes("hiver");
+      const hasSaison = name.includes("saison");
+
+      if (mode === "all") return true;
+      if (mode === "ete") return hasEte || hasSaison;
+      if (mode === "hiver") return hasHiver || hasSaison;
+
+      return false;
+    })
+  };
+
+  filteredLayer = L.geoJSON(filtered, { color: 'blue' }).addTo(map);
+  buildGraph(filtered);
+  connectNearbySegments(filtered, 25);
+}
+
+  
 function filterTrails(mode) {
   const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -378,9 +409,13 @@ fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
     originalTrailData = data;
-    rebuildTrailNetwork('all'); // initial load
+    updateTrailDisplay('all'); // initial render
   });
-  
+  document.getElementById('trail-type').addEventListener('change', function () {
+  const mode = this.value;
+  updateTrailDisplay(mode);
+});
+
 </script>
 
 </body>
