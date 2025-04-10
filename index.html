@@ -123,19 +123,25 @@ function connectNearbySegments(data, threshold = 25) {
 
 function filterTrails(mode) {
   const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const keyword = normalize;
 
   return {
     type: 'FeatureCollection',
     features: originalTrailData.features.filter(f => {
       const name = normalize(f.properties.nom || "");
+
+      const isSaison = name.includes("saison");
+      const isEte = name.includes("ete");
+      const isHiver = name.includes("hiver");
+
       if (mode === "all") return true;
-      if (mode === "ete") return name.includes("saison") || name.includes("ete");
-      if (mode === "hiver") return name.includes("saison") || name.includes("hiver");
+      if (mode === "ete") return isEte || isSaison;
+      if (mode === "hiver") return isHiver || isSaison;
       return false;
     })
   };
 }
+console.log("Filtered trail:", f.properties.nom);
+
 
 function renderTrails(data) {
   if (filteredLayer) map.removeLayer(filteredLayer);
