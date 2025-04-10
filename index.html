@@ -151,7 +151,7 @@ fetch('map.geojson')
   .then(res => res.json())
   .then(data => {
     trailData = data;
-    const filteredData = filterTrailData(data);
+    const filteredData = data;
 
     L.geoJSON(filteredData, { color: 'blue' }).addTo(map);
     buildGraph(filteredData);
