@@ -560,6 +560,22 @@ map.on("click", e => {
     const startKey = addTemporaryNodeToGraph({ lat: snappedStartCoords[1], lng: snappedStartCoords[0] });
     const endKey = addTemporaryNodeToGraph({ lat: snappedEndCoords[1], lng: snappedEndCoords[0] });
 
+    const startKey = addTemporaryNodeToGraph(snappedStart, graph);
+    const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
+    
+    // ✅ Add this right after!
+    console.log("📌 Checking graph connectivity for start and end:");
+    console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
+    console.log("EndKey:", endKey, "Exists:", !!graph[endKey], "Connections:", graph[endKey]);
+    
+    const reachable = traverseGraphFrom(startKey, graph);
+    console.log("🌐 Reachable nodes from startKey:", reachable.size);
+    console.log("🔎 Does it include endKey?", reachable.has(endKey));
+    
+    // Then run Dijkstra
+    const path = dijkstra(startKey, endKey);
+
+
     if (!graph[startKey]) {
       graph[startKey] = findNearestGraphConnections(snappedStartCoords);
       nodeCoords[startKey] = snappedStartCoords;
