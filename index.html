@@ -27,7 +27,16 @@
 <body>
 
 <div id="map"></div>
+
 <div id="info">
+  <label for="trailFilter"><strong>Trail Mode:</strong></label>
+  <select id="trailFilter">
+    <option value="all">All</option>
+    <option value="ete">Été + Saison</option>
+    <option value="hiver">Hiver + Saison</option>
+  </select>
+  <br /><br />
+
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
@@ -37,15 +46,16 @@
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
-
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-let trailData, graph = {}, nodeCoords = {};
+let originalTrailData, filteredLayer;
+let graph = {}, nodeCoords = {};
 let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-let userMarker, routeLine;
-let previewLines = [];
+let routeLine, previewLines = [];
+
+const trailFilterSelect = document.getElementById('trailFilter');
 
 function coordKey(coord) {
   return `${coord[1].toFixed(5)},${coord[0].toFixed(5)}`;
@@ -57,6 +67,9 @@ function addEdge(a, b, dist) {
 }
 
 function buildGraph(data) {
+  graph = {};
+  nodeCoords = {};
+
   data.features.forEach(f => {
     if (f.geometry.type === 'LineString') {
       const coords = f.geometry.coordinates;
@@ -108,6 +121,34 @@ function connectNearbySegments(data, threshold = 25) {
   }
 }
 
+function filterTrails(mode) {
+  const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const keyword = normalize;
+
+  return {
+    type: 'FeatureCollection',
+    features: originalTrailData.features.filter(f => {
+      const name = normalize(f.properties.nom || "");
+      if (mode === "all") return true;
+      if (mode === "ete") return name.includes("saison") || name.includes("ete");
+      if (mode === "hiver") return name.includes("saison") || name.includes("hiver");
+      return false;
+    })
+  };
+}
+
+function renderTrails(data) {
+  if (filteredLayer) map.removeLayer(filteredLayer);
+  filteredLayer = L.geoJSON(data, { color: 'blue' }).addTo(map);
+}
+
+function rebuildTrailNetwork(mode) {
+  const filtered = filterTrails(mode);
+  renderTrails(filtered);
+  buildGraph(filtered);
+  connectNearbySegments(filtered, 25);
+}
+
 function findClosestNode(latLng) {
   let minDist = Infinity, closestNode = null, threshold = 100;
   Object.keys(nodeCoords).forEach(key => {
@@ -121,42 +162,19 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
-// --- NEW: Trail type filtering helpers ---
-function removeAccents(str) {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function matchesAllowedTrailType(typeStr) {
-  const normalized = removeAccents(typeStr || "").toLowerCase();
-
-  return (
-    normalized.includes("saison") ||
-    normalized.includes("ete") || normalized.includes("etes") ||
-    normalized.includes("hiver") || normalized.includes("hivers")
-  );
-}
-
-function filterTrailData(data) {
-  return {
-    type: "FeatureCollection",
-    features: data.features.filter(f =>
-      f.geometry.type === 'LineString' &&
-      matchesAllowedTrailType(f.properties.trailType)
-    )
-  };
-}
-// -----------------------------------------
-
-fetch('map.geojson')
-  .then(res => res.json())
-  .then(data => {
-    trailData = data;
-    const filteredData = data;
-
-    L.geoJSON(filteredData, { color: 'blue' }).addTo(map);
-    buildGraph(filteredData);
-    connectNearbySegments(filteredData, 25);
-  });
+trailFilterSelect.addEventListener('change', () => {
+  rebuildTrailNetwork(trailFilterSelect.value);
+  clickCount = 0;
+  if (startMarker) map.removeLayer(startMarker);
+  if (endMarker) map.removeLayer(endMarker);
+  if (routeLine) map.removeLayer(routeLine);
+  previewLines.forEach(l => map.removeLayer(l));
+  previewLines = [];
+  document.getElementById('directions').innerHTML = '';
+  document.getElementById('distance').textContent = '-';
+  document.getElementById('time').textContent = '-';
+  document.getElementById('route-options').innerHTML = '';
+});
 
 map.on('click', function (e) {
   const snapped = findClosestNode(e.latlng);
@@ -189,7 +207,7 @@ map.on('click', function (e) {
     renderRouteOptions(routes);
   }
 });
-
+  
 function findMultipleRoutes(start, end, numRoutes = 3) {
   const allPaths = [], visitedPaths = new Set();
 
@@ -337,6 +355,14 @@ function renderDirections(path) {
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12);
 }
+
+fetch('map.geojson')
+  .then(res => res.json())
+  .then(data => {
+    originalTrailData = data;
+    rebuildTrailNetwork('all'); // initial load
+  });
+  
 </script>
 
 </body>
