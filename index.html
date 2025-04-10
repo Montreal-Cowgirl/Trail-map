@@ -557,9 +557,6 @@ map.on("click", e => {
     const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
     const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
 
-    const startKey = addTemporaryNodeToGraph({ lat: snappedStartCoords[1], lng: snappedStartCoords[0] });
-    const endKey = addTemporaryNodeToGraph({ lat: snappedEndCoords[1], lng: snappedEndCoords[0] });
-
     const startKey = addTemporaryNodeToGraph(snappedStart, graph);
     const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
     
