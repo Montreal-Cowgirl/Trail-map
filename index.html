@@ -278,6 +278,10 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const a = coords[i];
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
+        if (!Array.isArray([lng, lat]) || [lng, lat].some(n => typeof n !== 'number' || !Number.isFinite(n))) {
+        console.error('❌ Still invalid coordinate pair:', [lng, lat]);
+        throw new Error('Invalid coordinate pair passed to turf.point()');
+      }
 
         const dist = turf.pointToLineDistance(
           turf.point([lng, lat]), // ✅ safe here now
@@ -300,31 +304,14 @@ function addTemporaryNodeToGraph(snappedPoint) {
   }
 
   const { a, b } = closestSegment;
-  const distToA = turf.distance(turf.point(a), turf.point([snappedPoint.lng, snappedPoint.lat]));
-  const distToB = turf.distance(turf.point(b), turf.point([snappedPoint.lng, snappedPoint.lat]));
+const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
+const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
 
-  const aKey = coordKey(a);
-  const bKey = coordKey(b);
-
-  // Add temp node and edges
-  graph[tempKey] = [
-    { node: aKey, dist: distToA },
-    { node: bKey, dist: distToB }
-  ];
-  if (!graph[aKey]) graph[aKey] = [];
-  if (!graph[bKey]) graph[bKey] = [];
-  graph[aKey].push({ node: tempKey, dist: distToA });
-  graph[bKey].push({ node: tempKey, dist: distToB });
-
-  nodeCoords[tempKey] = [snappedPoint.lng, snappedPoint.lat];
+nodeCoords[tempKey] = [lng, lat];
 
   console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
   return tempKey;
 }
-
-
-
-
 
   function addSnappedPointToGraph(latlng) {
   const pt = turf.point([latlng.lng, latlng.lat]);
