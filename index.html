@@ -137,8 +137,8 @@ function filterTrails(mode) {
       if (mode === "ete") return isEte || isSaison;
       if (mode === "hiver") return isHiver || isSaison;
       return false;
+      console.log("Filtered trail:", f.properties.nom);
     })
-    console.log("Filtered trail:", f.properties.nom);
   };
 }
 
