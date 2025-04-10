@@ -163,9 +163,38 @@ function buildGraph(data, seasonMode = "auto") {
       debugFeatureConnectivity(f.properties.id);
     }
   });
+
+  countConnectedComponents(); // 🧭 Check how many separate graph components exist
 }
 
+function countConnectedComponents() {
+  const visited = new Set();
+  let components = 0;
 
+  for (const node in graph) {
+    if (!visited.has(node)) {
+      components++;
+      const stack = [node];
+
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!visited.has(current)) {
+          visited.add(current);
+          const neighbors = graph[current] ?? [];
+          for (const neighbor of neighbors) {
+            if (!visited.has(neighbor.node)) {
+              stack.push(neighbor.node);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`🌐 Graph contains ${components} connected component(s).`);
+}
+
+  
 // ✅ Add debug function here
 function debugFeatureConnectivity(featureId) {
   const feature = geojsonData.features.find(f => f.properties?.id == featureId);
