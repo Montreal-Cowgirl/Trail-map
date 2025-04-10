@@ -154,7 +154,7 @@ function buildGraph(data, seasonMode = "auto") {
   console.log(`✅ Graph built with ${Object.keys(graph).length} connections and ${skipped} skipped features.`);
 }
 
-function traverseGraphFrom(startKey) {
+function traverseGraphFrom(startKey, graph) {
   const visited = new Set();
   const queue = [startKey];
   while (queue.length > 0) {
