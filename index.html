@@ -525,26 +525,33 @@ map.on("click", e => {
     snappedPoint.geometry.coordinates[0]
   );
 
+  // CASE 1: Set Start Marker
   if (!startMarker) {
     startMarker = L.marker(snappedLatLng, {
       draggable: false,
       icon: L.icon({
-        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
-      })
-    }).addTo(map);
-  } else if (!endMarker) {
-    endMarker = L.marker(snappedLatLng, {
-      draggable: false,
-      icon: L.icon({
-        iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png',
+        iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
         iconSize: [32, 32],
         iconAnchor: [16, 32]
       })
     }).addTo(map);
 
-    // ✅ Use same filtered trails for snapping to graph nodes
+    const startKey = addSnappedPointToGraph(snappedLatLng);
+    if (!startKey) return;
+    startMarker.key = startKey;
+
+  // CASE 2: Set End Marker and Calculate Route
+  } else if (!endMarker) {
+    endMarker = L.marker(snappedLatLng, {
+      draggable: false,
+      icon: L.icon({
+        iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
+    }).addTo(map);
+
+    // Snap both markers to the current filtered trail network
     const snappedStart = turf.nearestPointOnLine(
       turf.featureCollection(filteredFeatures),
       turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat])
@@ -559,20 +566,17 @@ map.on("click", e => {
 
     const startKey = addTemporaryNodeToGraph(snappedStart, graph);
     const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
-    
-    // ✅ Add this right after!
+
+    // Logging graph structure
     console.log("📌 Checking graph connectivity for start and end:");
     console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
     console.log("EndKey:", endKey, "Exists:", !!graph[endKey], "Connections:", graph[endKey]);
-    
+
     const reachable = traverseGraphFrom(startKey, graph);
     console.log("🌐 Reachable nodes from startKey:", reachable.size);
     console.log("🔎 Does it include endKey?", reachable.has(endKey));
-    
-    // Then run Dijkstra
-    const path = dijkstra(startKey, endKey);
 
-
+    // Add to graph if needed
     if (!graph[startKey]) {
       graph[startKey] = findNearestGraphConnections(snappedStartCoords);
       nodeCoords[startKey] = snappedStartCoords;
@@ -582,6 +586,7 @@ map.on("click", e => {
       nodeCoords[endKey] = snappedEndCoords;
     }
 
+    // Compute path
     const path = dijkstra(startKey, endKey);
 
     if (path.length > 0) {
@@ -590,6 +595,8 @@ map.on("click", e => {
       alert("No path found.");
       console.warn("No path found between", startKey, "and", endKey);
     }
+
+  // CASE 3: Reset for next route
   } else {
     map.removeLayer(startMarker);
     map.removeLayer(endMarker);
@@ -602,6 +609,7 @@ map.on("click", e => {
     document.getElementById("directions").innerHTML = "";
   }
 });
+
 
 
 navigator.geolocation.getCurrentPosition(pos => {
