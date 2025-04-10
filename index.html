@@ -73,8 +73,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let originalTrailData = null;
 let filteredLayer = null;
 let graph = {}, nodeCoords = {};
-let startMarker, endMarker, clickCount = 0, startNode = null, endNode = null;
-let routeLine, previewLines = [];
+let startMarker=null, endMarker=null, clickCount = 0, startNode = null, endNode = null;
+let routeLine=null, previewLines = [];
 
 const trailFilterSelect = document.getElementById('trailFilter');
 const startIcon = L.icon({
@@ -249,12 +249,8 @@ trailFilterSelect.addEventListener('change', () => {
   document.getElementById('route-options').innerHTML = '';
 });
 
-let clickState = 0,
-    startNode = null,
-    endNode = null,
-    routeLine = null,
-    previewLines = [];
-
+let clickState = 0;
+  
 map.on('click', function (e) {
   const latlng = e.latlng;
 
