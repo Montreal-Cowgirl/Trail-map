@@ -540,63 +540,62 @@ map.on("click", e => {
     startMarker.key = startKey;
 
   // CASE 2: Set End Marker and Calculate Route
-  } else if (!endMarker) {
-    endMarker = L.marker(snappedLatLng, {
-      draggable: false,
-      icon: L.icon({
-        iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
-      })
-    }).addTo(map);
+  } } else if (!endMarker) {
+  endMarker = L.marker(snappedLatLng, {
+    draggable: false,
+    icon: L.icon({
+      iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    })
+  }).addTo(map);
 
-    // Snap both markers to the current filtered trail network
-    const snappedStart = turf.nearestPointOnLine(
-      turf.featureCollection(filteredFeatures),
-      turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat])
-    );
-    const snappedEnd = turf.nearestPointOnLine(
-      turf.featureCollection(filteredFeatures),
-      turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat])
-    );
+  // Snap both markers to the current filtered trail network
+  const snappedStart = turf.nearestPointOnLine(
+    turf.featureCollection(filteredFeatures),
+    turf.point([startMarker.getLatLng().lng, startMarker.getLatLng().lat])
+  );
+  const snappedEnd = turf.nearestPointOnLine(
+    turf.featureCollection(filteredFeatures),
+    turf.point([endMarker.getLatLng().lng, endMarker.getLatLng().lat])
+  );
 
-    const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
-    const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
+  const snappedStartCoords = [snappedStart.geometry.coordinates[0], snappedStart.geometry.coordinates[1]];
+  const snappedEndCoords = [snappedEnd.geometry.coordinates[0], snappedEnd.geometry.coordinates[1]];
 
-    const startKey = addTemporaryNodeToGraph(snappedStart, graph);
-    const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
+  // 🔧 FIXED: Get startKey from the existing marker
+  const startKey = startMarker.key;
+  const endKey = addTemporaryNodeToGraph(snappedEnd, graph);
 
-    // ✅ Make sure the keys are stored on the markers
-    startMarker.key = startKey;
-    endMarker.key = endKey;
+  // Logging graph structure
+  console.log("📌 Checking graph connectivity for start and end:");
+  console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
+  console.log("EndKey:", endKey, "Exists:", !!graph[endKey], "Connections:", graph[endKey]);
 
-    // Logging graph structure
-    console.log("📌 Checking graph connectivity for start and end:");
-    console.log("StartKey:", startKey, "Exists:", !!graph[startKey], "Connections:", graph[startKey]);
-    console.log("EndKey:", endKey, "Exists:", !!graph[endKey], "Connections:", graph[endKey]);
+  const reachable = traverseGraphFrom(startKey, graph);
+  console.log("🌐 Reachable nodes from startKey:", reachable.size);
+  console.log("🔎 Does it include endKey?", reachable.has(endKey));
 
-    const reachable = traverseGraphFrom(startKey, graph);
-    console.log("🌐 Reachable nodes from startKey:", reachable.size);
-    console.log("🔎 Does it include endKey?", reachable.has(endKey));
+  // Add to graph if needed
+  if (!graph[startKey]) {
+    graph[startKey] = findNearestGraphConnections(snappedStartCoords);
+    nodeCoords[startKey] = snappedStartCoords;
+  }
+  if (!graph[endKey]) {
+    graph[endKey] = findNearestGraphConnections(snappedEndCoords);
+    nodeCoords[endKey] = snappedEndCoords;
+  }
 
-    // Add to graph if needed
-    if (!graph[startKey]) {
-      graph[startKey] = findNearestGraphConnections(snappedStartCoords);
-      nodeCoords[startKey] = snappedStartCoords;
-    }
-    if (!graph[endKey]) {
-      graph[endKey] = findNearestGraphConnections(snappedEndCoords);
-      nodeCoords[endKey] = snappedEndCoords;
-    }
+  // Compute path
+  const path = dijkstra(startKey, endKey);
 
-    const path = dijkstra(startKey, endKey);
-
-    if (path.length > 0) {
-      drawRoute(path);
-    } else {
-      alert("No path found.");
-      console.warn("No path found between", startKey, "and", endKey);
-    }
+  if (path.length > 0) {
+    drawRoute(path);
+  } else {
+    alert("No path found.");
+    console.warn("No path found between", startKey, "and", endKey);
+  }
+}
 
   // CASE 3: Reset for next route
   } else {
