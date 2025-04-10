@@ -63,7 +63,13 @@ function addEdge(a, b, dist) {
 }
 
 function coordKey(coord) {
-  return coord[0].toFixed(5) + "," + coord[1].toFixed(5);
+  if (!Array.isArray(coord) || coord.length < 2 || coord[0] == null || coord[1] == null) {
+    console.error('Invalid coord passed to coordKey:', coord);
+    return 'invalid_coord';
+  }
+  return `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
+}
+
 }
 
 function getAllowedSeasonKeywords(mode = "auto") {
@@ -253,7 +259,8 @@ function findNearestNode(latlng) {
 
 
 function addTemporaryNodeToGraph(snappedPoint) {
-  const tempKey = coordKey([snappedPoint.lng, snappedPoint.lat]);
+  const [lng, lat] = snappedPoint.geometry.coordinates;
+  const tempKey = coordKey([lng, lat]);
   let closestSegment = null;
   let minDist = Infinity;
   let maxAcceptableDist = 0.01; // ~10 meters in kilometers
