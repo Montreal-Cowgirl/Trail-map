@@ -271,11 +271,13 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const a = coords[i];
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
+        const [lng, lat] = snappedPoint.geometry.coordinates;
         const dist = turf.pointToLineDistance(
-          turf.point([snappedPoint.lng, snappedPoint.lat]),
+          turf.point([lng, lat]),
           line,
           { units: 'kilometers' }
         );
+
         if (dist < minDist) {
           minDist = dist;
           closestSegment = { a, b };
