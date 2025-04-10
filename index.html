@@ -540,7 +540,7 @@ map.on("click", e => {
     startMarker.key = startKey;
 
   // CASE 2: Set End Marker and Calculate Route
-  } } else if (!endMarker) {
+  } else if (!endMarker) {
   endMarker = L.marker(snappedLatLng, {
     draggable: false,
     icon: L.icon({
