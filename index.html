@@ -258,12 +258,19 @@ function findNearestNode(latlng) {
 
 function addTemporaryNodeToGraph(snappedPoint) {
   const [lng, lat] = snappedPoint.geometry.coordinates;
+  console.log('🛠️ DEBUG: snappedPoint.geometry.coordinates =', snappedPoint.geometry.coordinates);
+  console.log('🛠️ DEBUG: lng =', lng, 'lat =', lat);
+
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    console.error('❌ Invalid snappedPoint coords! Aborting turf.point()');
+    return;
+  }
+
   const tempKey = coordKey([lng, lat]);
   let closestSegment = null;
   let minDist = Infinity;
-  let maxAcceptableDist = 0.01; // ~10 meters in kilometers
+  let maxAcceptableDist = 0.01;
 
-  // Try to find the closest segment
   geojsonData.features.forEach(f => {
     if (f.geometry.type === "LineString") {
       const coords = f.geometry.coordinates;
@@ -271,21 +278,13 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const a = coords[i];
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
-        console.log('🧪 Testing line segment:', line);
-        
-        if (!Array.isArray(line.geometry.coordinates[0]) || !Number.isFinite(line.geometry.coordinates[0][0])) {
-          console.error('❌ Invalid line segment:', line);
-          return;
-        }
-        const dist = turf.pointToLineDistance(turf.point([lng, lat]), line, { units: 'kilometers' });
-        const [lng, lat] = snappedPoint.geometry.coordinates;
-        console.log('🛠️ DEBUG: snappedPoint.geometry.coordinates =', snappedPoint.geometry.coordinates);
-        console.log('🛠️ DEBUG: lng =', lng, 'lat =', lat);
-        
-        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-          console.error('❌ Invalid snappedPoint coords! Aborting turf.point()');
-          return;
-        }
+
+        const dist = turf.pointToLineDistance(
+          turf.point([lng, lat]), // ✅ safe here now
+          line,
+          { units: 'kilometers' }
+        );
+
         if (dist < minDist) {
           minDist = dist;
           closestSegment = { a, b };
