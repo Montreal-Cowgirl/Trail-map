@@ -270,64 +270,63 @@ function addTemporaryNodeToGraph(snappedPoint) {
   let closestSegment = null;
   let minDist = Infinity;
   let maxAcceptableDist = 0.01;
+  let featureID = null;
 
-geojsonData.features.forEach(f => {
-  if (f.geometry.type === "LineString") {
-    const coords = f.geometry.coordinates;
-    for (let i = 0; i < coords.length - 1; i++) {
-      const a = coords[i];
-      const b = coords[i + 1];
-      const line = turf.lineString([a, b]);
+  geojsonData.features.forEach((f, index) => {
+    if (f.geometry.type === "LineString") {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i];
+        const b = coords[i + 1];
+        const line = turf.lineString([a, b]);
 
-      if (!Array.isArray([lng, lat]) || [lng, lat].some(n => typeof n !== 'number' || !Number.isFinite(n))) {
-        console.error('❌ Still invalid coordinate pair:', [lng, lat]);
-        throw new Error('Invalid coordinate pair passed to turf.point()');
-      }
+        const dist = turf.pointToLineDistance(
+          turf.point([lng, lat]),
+          line,
+          { units: 'kilometers' }
+        );
 
-      const dist = turf.pointToLineDistance(
-        turf.point([lng, lat]),
-        line,
-        { units: 'kilometers' }
-      );
-
-      if (dist < minDist) {
-        minDist = dist;
-        closestSegment = { a, b };
+        if (dist < minDist) {
+          minDist = dist;
+          closestSegment = { a, b };
+          featureID = f.properties?.id ?? index;
+        }
       }
     }
+  });
+
+  if (!closestSegment || minDist > maxAcceptableDist) {
+    console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
+    alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
+    return null;
   }
-});
 
-if (!closestSegment || minDist > maxAcceptableDist) {
-  console.warn(`❌ Could not find a nearby graph segment to connect to for point ${tempKey}`);
-  alert("⚠️ Couldn't find a nearby trail segment to connect your clicked point.");
-  return null;
+  console.log("Start or end snapped to segment in feature ID:", featureID);
+
+  const { a, b } = closestSegment;
+  const aKey = coordKey(a);
+  const bKey = coordKey(b);
+
+  const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
+  const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
+
+  graph[tempKey] = [
+    { node: aKey, dist: distToA },
+    { node: bKey, dist: distToB }
+  ];
+
+  if (!graph[aKey]) graph[aKey] = [];
+  if (!graph[bKey]) graph[bKey] = [];
+
+  graph[aKey].push({ node: tempKey, dist: distToA });
+  graph[bKey].push({ node: tempKey, dist: distToB });
+
+  nodeCoords[tempKey] = [lng, lat];
+
+  console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
+  return tempKey;
 }
 
-// 🔧 New lines below
-const { a, b } = closestSegment;
-const aKey = coordKey(a);
-const bKey = coordKey(b);
-
-const distToA = turf.distance(turf.point(a), turf.point([lng, lat]));
-const distToB = turf.distance(turf.point(b), turf.point([lng, lat]));
-
-graph[tempKey] = [
-  { node: aKey, dist: distToA },
-  { node: bKey, dist: distToB }
-];
-
-if (!graph[aKey]) graph[aKey] = [];
-if (!graph[bKey]) graph[bKey] = [];
-
-graph[aKey].push({ node: tempKey, dist: distToA });
-graph[bKey].push({ node: tempKey, dist: distToB });
-
-nodeCoords[tempKey] = [lng, lat];
-
-console.log(`✅ Added temp node ${tempKey} connected to ${aKey} and ${bKey}`);
-return tempKey;
-}
 
   function addSnappedPointToGraph(latlng) {
   const pt = turf.point([latlng.lng, latlng.lat]);
@@ -335,45 +334,50 @@ return tempKey;
   let snappedCoord = null;
   let segmentEnds = [];
 
-  geojsonData.features.forEach(f => {
-    if (f.geometry.type === "LineString") {
-      const line = turf.lineString(f.geometry.coordinates);
-      const snapped = turf.nearestPointOnLine(line, pt);
-      if (snapped.properties.dist < minDist) {
-        minDist = snapped.properties.dist;
-        snappedCoord = snapped.geometry.coordinates;
+geojsonData.features.forEach((f, index) => {
+  if (f.geometry.type === "LineString") {
+    const line = turf.lineString(f.geometry.coordinates);
+    const snapped = turf.nearestPointOnLine(line, pt);
 
-        const segIndex = snapped.properties.index;
-        const coords = f.geometry.coordinates;
+    if (snapped.properties.dist < minDist) {
+      minDist = snapped.properties.dist;
+      snappedCoord = snapped.geometry.coordinates;
 
-        if (segIndex < coords.length - 1) {
-          segmentEnds = [coords[segIndex], coords[segIndex + 1]];
-        }
+      const segIndex = snapped.properties.index;
+      const coords = f.geometry.coordinates;
+      if (segIndex < coords.length - 1) {
+        segmentEnds = [coords[segIndex], coords[segIndex + 1]];
       }
+
+      featureID = f.properties?.id ?? index;
     }
-  });
-
-  if (!snappedCoord || segmentEnds.length !== 2) {
-    console.warn("Snapping failed.");
-    return null;
   }
+});
 
-  const keySnapped = coordKey(snappedCoord);
-  nodeCoords[keySnapped] = snappedCoord;
+if (!snappedCoord || segmentEnds.length !== 2) {
+  console.warn("Snapping failed.");
+  return null;
+}
 
-  const [a, b] = segmentEnds;
-  const keyA = coordKey(a);
-  const keyB = coordKey(b);
+console.log("Start or end snapped to segment in feature ID:", featureID);
 
-  // Add bidirectional edges to the graph
-  const distA = turf.distance(turf.point(a), turf.point(snappedCoord));
-  const distB = turf.distance(turf.point(b), turf.point(snappedCoord));
-  addEdge(keyA, keySnapped, distA);
-  addEdge(keySnapped, keyA, distA);
-  addEdge(keyB, keySnapped, distB);
-  addEdge(keySnapped, keyB, distB);
+const keySnapped = coordKey(snappedCoord);
+nodeCoords[keySnapped] = snappedCoord;
 
-  return keySnapped;
+const [a, b] = segmentEnds;
+const keyA = coordKey(a);
+const keyB = coordKey(b);
+
+const distA = turf.distance(turf.point(a), turf.point(snappedCoord));
+const distB = turf.distance(turf.point(b), turf.point(snappedCoord));
+
+addEdge(keyA, keySnapped, distA);
+addEdge(keySnapped, keyA, distA);
+addEdge(keyB, keySnapped, distB);
+addEdge(keySnapped, keyB, distB);
+
+return keySnapped;
+
 }
 //const reachable = traverseGraphFrom(startKey);
 //console.log("🌐 Reachable nodes from startKey:", reachable.size);
@@ -452,7 +456,7 @@ function dijkstra(startKey, endKey) {
 
 
 function drawRoute(path) {
-  console.log("Drawing route with", path.length, "points.");
+  console.log("🖊️ Drawing route with", path.length, "points.");
   
   // Clear previous route layers
   routeLayers.forEach(l => map.removeLayer(l));
@@ -462,48 +466,49 @@ function drawRoute(path) {
     const coord = nodeCoords[k];
 
     if (!coord) {
-      console.warn("Missing nodeCoords for key:", k);
+      console.warn("⚠️ Missing nodeCoords for key:", k);
       return null;
     }
 
     // Normalize to [lat, lng] format for Leaflet
     if (Array.isArray(coord)) {
-      // coord is [lng, lat] or [lng, lat, ...]
-      const lng = coord[0];
-      const lat = coord[1];
+      const [lng, lat] = coord;
       return [lat, lng];
     }
 
-    // If somehow stored as GeoJSON Point
     if (coord.type === "Point" && Array.isArray(coord.coordinates)) {
       const [lng, lat] = coord.coordinates;
       return [lat, lng];
     }
 
-    console.warn("Invalid coordinate format for key:", k, "→", coord);
+    console.warn("⚠️ Invalid coordinate format for key:", k, "→", coord);
     return null;
   }).filter(Boolean);
 
-  console.log("Route coordinates:", coords);
+  console.log("🧭 Route coordinates:", coords);
 
   if (coords.length < 2) {
-    console.warn("Not enough valid coordinates to draw route.");
+    console.warn("⚠️ Not enough valid coordinates to draw route.");
     return;
   }
 
-  // Draw route
+  // Draw the route
   const line = L.polyline(coords, { color: 'orange', weight: 4 }).addTo(map);
   routeLayers.push(line);
 
-  // Calculate and display distance and estimated time
+  // Distance and estimated time
   const totalDist = coords.reduce((sum, _, i) => {
     if (i === 0) return 0;
-    return sum + turf.distance(turf.point([coords[i - 1][1], coords[i - 1][0]]), turf.point([coords[i][1], coords[i][0]]));
+    return sum + turf.distance(
+      turf.point([coords[i - 1][1], coords[i - 1][0]]),
+      turf.point([coords[i][1], coords[i][0]])
+    );
   }, 0);
 
   document.getElementById("distance").textContent = totalDist.toFixed(2);
   document.getElementById("time").textContent = Math.round((totalDist / 5) * 60); // 5 km/h
 }
+
 
 
 
