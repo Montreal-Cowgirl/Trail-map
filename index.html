@@ -272,6 +272,7 @@ function addTemporaryNodeToGraph(snappedPoint) {
         const b = coords[i + 1];
         const line = turf.lineString([a, b]);
         const [lng, lat] = snappedPoint.geometry.coordinates;
+        console.log('DEBUG: snappedPoint coords', { lng, lat });
         const dist = turf.pointToLineDistance(
           turf.point([lng, lat]),
           line,
