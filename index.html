@@ -154,6 +154,19 @@ function buildGraph(data, seasonMode = "auto") {
   console.log(`✅ Graph built with ${Object.keys(graph).length} connections and ${skipped} skipped features.`);
 }
 
+function traverseGraphFrom(startKey) {
+  const visited = new Set();
+  const queue = [startKey];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (visited.has(node)) continue;
+    visited.add(node);
+    for (let neighbor of (graph[node] || [])) {
+      queue.push(neighbor.node);
+    }
+  }
+  return visited;
+}
 
 
 
@@ -345,6 +358,9 @@ function addTemporaryNodeToGraph(snappedPoint) {
 
   return keySnapped;
 }
+const reachable = traverseGraphFrom(startKey);
+console.log("🌐 Reachable nodes from startKey:", reachable.size);
+console.log("🔎 Does it include endKey?", reachable.has(endKey));
 
 
 function dijkstra(startKey, endKey) {
