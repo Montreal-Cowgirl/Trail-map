@@ -286,12 +286,6 @@ function addTemporaryNodeToGraph(snappedPoint) {
           console.error('❌ Invalid snappedPoint coords! Aborting turf.point()');
           return;
         }
-        const dist = turf.pointToLineDistance(
-          turf.point([lng, lat]),
-          line,
-          { units: 'kilometers' }
-        );
-
         if (dist < minDist) {
           minDist = dist;
           closestSegment = { a, b };
