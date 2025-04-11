@@ -306,6 +306,10 @@ map.on('click', function (e) {
   if (!startNode) console.warn("Failed to find nearby node for start point:", snappedLatLng);
   else if (!endNode) console.warn("Failed to find nearby node for end point:", snappedLatLng);
 
+    if (!startNode || !endNode) {
+  console.warn("Cannot calculate route: one or both nodes are null");
+  return;
+}
 
     const routes = findMultipleRoutes(startNode, endNode);
     renderRouteOptions(routes);
