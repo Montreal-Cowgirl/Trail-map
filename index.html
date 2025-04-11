@@ -312,11 +312,7 @@ map.on('click', function (e) {
     const routes = findMultipleRoutes(startNode, endNode);
     renderRouteOptions(routes);
     clickState = 2;
-  }
-});
-
-
-  
+    
 function findMultipleRoutes(start, end, numRoutes = 3) {
   const allPaths = [], visitedPaths = new Set();
 
