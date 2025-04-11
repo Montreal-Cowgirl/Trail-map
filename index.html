@@ -303,8 +303,9 @@ map.on('click', function (e) {
     endMarker = L.marker(snappedLatLng, { icon: endIcon }).addTo(map);
     endNode = nearestNode;
 
-    if (!startNode) console.warn("Failed to find nearby node for start point:", snappedStart.geometry.coordinates);
-    if (!endNode) console.warn("Failed to find nearby node for end point:", snappedEnd.geometry.coordinates);
+  if (!startNode) console.warn("Failed to find nearby node for start point:", snappedLatLng);
+  else if (!endNode) console.warn("Failed to find nearby node for end point:", snappedLatLng);
+
 
     const routes = findMultipleRoutes(startNode, endNode);
     renderRouteOptions(routes);
