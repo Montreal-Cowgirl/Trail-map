@@ -295,6 +295,11 @@ map.on('click', function (e) {
     endMarker = L.marker(snappedLatLng, { icon: endIcon }).addTo(map);
     endNode = nearestNode;
 
+    if (!startNode || !endNode) {
+      alert("Could not find a nearby trail node.");
+      return;
+    }
+    
     const routes = findMultipleRoutes(startNode, endNode);
     renderRouteOptions(routes);
     clickState = 2;
@@ -483,8 +488,11 @@ fetch('map.geojson')
   .then(data => {
     originalTrailData = data;
     trailLine = turf.lineString(
-      data.features.flatMap(f => f.geometry.coordinates)
+      data.features
+      .filter(f => f.geometry.type === 'LineString')
+      .flatMap(f => f.geometry.coordinates)
     );
+
     updateTrailDisplay('all'); // initial render
   });
 
