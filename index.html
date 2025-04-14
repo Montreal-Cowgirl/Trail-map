@@ -424,10 +424,6 @@ fetch('map.geojson')
     originalTrailData = data;
     updateTrailDisplay('all'); // initial render
   });
-  document.getElementById('trail-type').addEventListener('change', function () {
-  const mode = this.value;
-  updateTrailDisplay(mode);
-});
 
 </script>
 
