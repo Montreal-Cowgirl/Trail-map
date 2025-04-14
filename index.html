@@ -239,6 +239,7 @@ trailFilterSelect.addEventListener('change', () => {
 });
 
 let clickState = 0; // 0 = waiting for start, 1 = waiting for end, 2 = routes shown
+let startMarker, endMarker;
 let routeLayers = [];
 
 map.on('click', function(e) {
@@ -257,7 +258,7 @@ map.on('click', function(e) {
 
     if (startNode && endNode) {
       const routes = findMultipleRoutes(startNode, endNode);
-      renderRouteOptions(routes);
+      drawRoute(routes);
       clickState = 2;
     }
   } else if (clickState === 2) {
