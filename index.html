@@ -308,56 +308,64 @@ map.on('click', function (e) {
 
 
 function findMultipleRoutes(start, end, numRoutes = 3) {
-    const primaryPath = findPath(graph, start, end); // ✅ using your actual function
-    if (!primaryPath) return [];
+  const routes = [];
+  const blockedEdgesList = [];
 
-    const allRoutes = [primaryPath];
-    const blockedEdgesSets = [];
+  // Find the shortest path first
+  const shortest = findPath(start, end, []);
+  if (!shortest) return routes;
+  routes.push(shortest);
+  blockedEdgesList.push([]);
 
-    for (let i = 1; i < numRoutes * 3 && allRoutes.length < numRoutes; i++) {
-        const previousPath = allRoutes[allRoutes.length - 1];
+  // Try to find up to numRoutes - 1 alternate routes
+  const maxTries = 30;
+  let tries = 0;
 
-        const edgesToBlock = previousPath.slice(0, i).map((node, idx, arr) => {
-            if (idx < arr.length - 1) {
-                return [arr[idx], arr[idx + 1]];
-            }
-        }).filter(Boolean);
+  while (routes.length < numRoutes && tries < maxTries) {
+    tries++;
 
-        const edgeSetKey = JSON.stringify(edgesToBlock);
-        if (blockedEdgesSets.includes(edgeSetKey)) continue;
-        blockedEdgesSets.push(edgeSetKey);
+    // Choose a different edge to block from the previous shortest path
+    const lastPath = routes[0]; // always block from the original shortest
+    if (!lastPath || lastPath.length < 3) break;
 
-        const tempGraph = JSON.parse(JSON.stringify(graph)); // deep copy of graph
-        edgesToBlock.forEach(([from, to]) => {
-            tempGraph[from] = tempGraph[from]?.filter(n => n.node !== to);
-        });
+    const newBlockedEdges = [...blockedEdgesList[0]];
 
-        const newPath = findPath(tempGraph, start, end); // ✅ using your actual function
-        if (!newPath) continue;
+    // Try blocking a random middle edge from the shortest path
+    const midIndex = Math.floor(Math.random() * (lastPath.length - 2)) + 1;
+    const fromNode = lastPath[midIndex];
+    const toNode = lastPath[midIndex + 1];
+    newBlockedEdges.push([fromNode, toNode]);
 
-        // Use Turf.js to compare spatial similarity
-        const newLine = turf.lineString(newPath.map(n => nodeCoords[n]));
-        let isDistinct = true;
+    // Try finding a new path
+    const altPath = findPath(start, end, newBlockedEdges);
+    if (!altPath) continue;
 
-        for (const existing of allRoutes) {
-            const existingLine = turf.lineString(existing.map(n => nodeCoords[n]));
-            const overlap = turf.lineOverlap(newLine, existingLine, { tolerance: 0.0001 });
-            const tooSimilar = overlap.features.length > 0 &&
-                turf.length(overlap.features[0]) / turf.length(newLine) > 0.75;
-            if (tooSimilar) {
-                isDistinct = false;
-                break;
-            }
-        }
+    // Check similarity to all existing routes
+    const isTooSimilar = routes.some(existing => {
+      const sim = calculatePathSimilarity(existing, altPath);
+      return sim > 0.8; // Overlap threshold: reject if too similar
+    });
 
-        if (isDistinct) {
-            allRoutes.push(newPath);
-        }
+    if (!isTooSimilar) {
+      routes.push(altPath);
+      blockedEdgesList.push(newBlockedEdges);
     }
+  }
 
-    return allRoutes;
+  return routes;
 }
 
+
+function calculatePathSimilarity(path1, path2) {
+  const line1 = turf.lineString(path1.map(n => graph.node(n).coord));
+  const line2 = turf.lineString(path2.map(n => graph.node(n).coord));
+  const overlap = turf.lineOverlap(line1, line2, { tolerance: 0.0001 });
+
+  const overlapLength = turf.length(overlap);
+  const avgLength = (turf.length(line1) + turf.length(line2)) / 2;
+
+  return overlapLength / avgLength;
+}
 
 
 
