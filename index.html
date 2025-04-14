@@ -307,6 +307,64 @@ map.on('click', function (e) {
     clickState = 2;
   }
 });
+function aStarWithBlockedEdges(startNode, endNode, graph, blockedEdges) {
+  const openSet = new Set([startNode]);
+  const cameFrom = new Map();
+  const gScore = new Map();
+  const fScore = new Map();
+
+  gScore.set(startNode, 0);
+  fScore.set(startNode, turf.distance(turf.point(startNode), turf.point(endNode)));
+
+  while (openSet.size > 0) {
+    // Get node in openSet with lowest fScore
+    let current = null;
+    let lowestF = Infinity;
+    for (let node of openSet) {
+      const score = fScore.get(node) || Infinity;
+      if (score < lowestF) {
+        lowestF = score;
+        current = node;
+      }
+    }
+
+    if (!current) break;
+
+    if (current[0] === endNode[0] && current[1] === endNode[1]) {
+      // Reconstruct path
+      const path = [current];
+      while (cameFrom.has(current)) {
+        current = cameFrom.get(current);
+        path.unshift(current);
+      }
+      return path;
+    }
+
+    openSet.delete(current);
+    const neighbors = graph.get(current.map(c => +c.toFixed(6)).join(',')) || [];
+
+    for (let neighborData of neighbors) {
+      const neighbor = neighborData.node;
+      const edgeKey = JSON.stringify([current, neighbor]);
+
+      if (blockedEdges && blockedEdges.has(edgeKey)) {
+        continue; // Skip blocked edge
+      }
+
+      const tentativeG = (gScore.get(current) || Infinity) + neighborData.weight;
+
+      if (tentativeG < (gScore.get(neighbor) || Infinity)) {
+        cameFrom.set(neighbor, current);
+        gScore.set(neighbor, tentativeG);
+        const heuristic = turf.distance(turf.point(neighbor), turf.point(endNode));
+        fScore.set(neighbor, tentativeG + heuristic);
+        openSet.add(neighbor);
+      }
+    }
+  }
+
+  return null; // No path found
+}
 
 
 function findMultipleRoutes(start, end, numRoutes = 3) {
