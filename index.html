@@ -326,45 +326,40 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
   }
 
-  function aStarWithBlockedEdges(blockedEdges) {
-    const distances = {}, previous = {}, fScores = {};
-    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-    const openSet = new Set([start]);
+ function aStarWithBlockedEdges(blockedEdges) {
+  const distances = {}, previous = {}, fScores = {};
+  const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+  const openSet = new Set([start]);
 
-    Object.keys(graph).forEach(n => {
-      distances[n] = Infinity;
-      fScores[n] = Infinity;
-    });
-    distances[start] = 0;
-    fScores[start] = heuristic(start, end);
+  Object.keys(graph).forEach(n => {
+    distances[n] = Infinity;
+    fScores[n] = Infinity;
+  });
+  distances[start] = 0;
+  fScores[start] = heuristic(start, end);
 
-    while (openSet.size > 0) {
-      // Get node with lowest fScore
-      let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+  while (openSet.size > 0) {
+    let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
 
-      if (current === end) break;
+    if (current === end) break;
 
-      openSet.delete(current);
+    openSet.delete(current);
 
-      for (const neighbor of graph[current] || []) {
-        const edgeKey = `${current}->${neighbor.node}`;
-        if (blockedSet.has(edgeKey)) continue;
+    for (const neighbor of graph[current] || []) {
+      const edgeKey = `${current}->${neighbor.node}`;
+      if (blockedSet.has(edgeKey)) continue;
 
-        const tentativeG = distances[current] + neighbor.dist;
-        if (tentativeG < distances[neighbor.node]) {
-          distances[neighbor.node] = tentativeG;
-          previous[neighbor.node] = current;
-          fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
-          openSet.add(neighbor.node);
-        }
+      const tentativeG = distances[current] + neighbor.dist;
+      if (tentativeG < distances[neighbor.node]) {
+        distances[neighbor.node] = tentativeG;
+        previous[neighbor.node] = current;
+        fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
+        openSet.add(neighbor.node);
       }
     }
-    // You’ll likely return something here — just keeping it identical to your input
-  }  // ✅ closes aStarWithBlockedEdges
+  }
 
-}  // ✅ closes findMultipleRoutes
-
-  // Reconstruct path
+  // ✅ Reconstruct path — now inside the function
   const path = [];
   let curr = end;
   while (previous[curr]) {
