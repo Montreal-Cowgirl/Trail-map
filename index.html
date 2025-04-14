@@ -317,10 +317,18 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     return [];
   }
 
+  // Create a Turf LineString from a route path
+  function pathToLine(path) {
+    return turf.lineString(path.map(p => p.split(',').map(Number)));
+  }
+
   const firstPath = dijkstraWithBlockedEdges([]);
   if (!firstPath.length) return allPaths;
   allPaths.push(firstPath);
   visitedPaths.add(firstPath.join('->'));
+
+  const firstLine = pathToLine(firstPath);
+  const firstLength = turf.length(firstLine);
 
   const turnEdges = [];
   for (let i = 1; i < firstPath.length - 1; i++) {
@@ -331,7 +339,25 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
   for (const edge of turnEdges) {
     const newPath = dijkstraWithBlockedEdges([edge]);
     const pathStr = newPath.join('->');
-    if (newPath.length && !visitedPaths.has(pathStr)) {
+
+    if (!newPath.length || visitedPaths.has(pathStr)) continue;
+
+    const newLine = pathToLine(newPath);
+    const newLength = turf.length(newLine);
+
+    // Compare distance: skip if within 5%
+    const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
+    if (lengthDiff < 0.05) continue;
+
+    // Check spatial similarity (overlap)
+    const isTooSimilar = allPaths.some(existingPath => {
+      const existingLine = pathToLine(existingPath);
+      const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
+      const overlapLen = turf.length(overlap);
+      return overlapLen / turf.length(newLine) > 0.7;
+    });
+
+    if (!isTooSimilar) {
       allPaths.push(newPath);
       visitedPaths.add(pathStr);
       if (allPaths.length >= numRoutes) break;
@@ -340,6 +366,7 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
 
   return allPaths;
 }
+
 
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
