@@ -249,40 +249,58 @@ trailFilterSelect.addEventListener('change', () => {
   document.getElementById('route-options').innerHTML = '';
 });
 
-let clickState = 0; // 0 = waiting for start, 1 = waiting for end, 2 = routes shown
-let routeLayers = [];
+let startMarker = null,
+    endMarker = null,
+    clickState = 0,
+    startNode = null,
+    endNode = null,
+    routeLine = null,
+    previewLines = [];
 
-map.on('click', function(e) {
-  if (clickState === 0) {
+map.on('click', function (e) {
+  const latlng = e.latlng;
+
+  // Reset everything after second click
+  if (clickState === 2) {
     if (startMarker) map.removeLayer(startMarker);
-    startMarker = L.marker(e.latlng, { icon: startIcon }).addTo(map);
-    startCoord = turf.nearestPointOnLine(fullLine, turf.point([e.latlng.lng, e.latlng.lat])).geometry.coordinates;
+    if (endMarker) map.removeLayer(endMarker);
+    if (routeLine) map.removeLayer(routeLine);
+    previewLines.forEach(line => map.removeLayer(line));
+    previewLines = [];
+    document.getElementById('route-options').innerHTML = '';
+    document.getElementById('directions').innerHTML = '';
+    document.getElementById('distance').textContent = '-';
+    document.getElementById('time').textContent = '-';
+    startMarker = null;
+    endMarker = null;
+    startNode = null;
+    endNode = null;
+    clickState = 0;
+    return;
+  }
+
+  // Snap click to nearest point on a trail
+  const snapped = turf.nearestPointOnLine(trailLine, turf.point([latlng.lng, latlng.lat]));
+  const snappedCoords = snapped.geometry.coordinates;
+  const snappedLatLng = L.latLng(snappedCoords[1], snappedCoords[0]);
+  const nearestNode = findNearestNode(snappedLatLng);
+
+  if (clickState === 0) {
+    // Place start marker
+    startMarker = L.marker(snappedLatLng, { icon: startIcon }).addTo(map);
+    startNode = nearestNode;
     clickState = 1;
   } else if (clickState === 1) {
-    if (endMarker) map.removeLayer(endMarker);
-    endMarker = L.marker(e.latlng, { icon: endIcon }).addTo(map);
-    endCoord = turf.nearestPointOnLine(fullLine, turf.point([e.latlng.lng, e.latlng.lat])).geometry.coordinates;
+    // Place end marker
+    endMarker = L.marker(snappedLatLng, { icon: endIcon }).addTo(map);
+    endNode = nearestNode;
 
-    const startNode = findNearestNode(startCoord);
-    const endNode = findNearestNode(endCoord);
-
-    if (startNode && endNode) {
-      const routes = findMultipleRoutes(startNode, endNode);
-      renderRouteOptions(routes);
-      clickState = 2;
-    }
-  } else if (clickState === 2) {
-    // Clear everything
-    if (startMarker) map.removeLayer(startMarker);
-    if (endMarker) map.removeLayer(endMarker);
-    routeLayers.forEach(layer => map.removeLayer(layer));
-    routeLayers = [];
-    document.getElementById("distance").textContent = "-";
-    document.getElementById("duration").textContent = "-";
-    document.getElementById("directions").innerHTML = "";
-    clickState = 0;
+    const routes = findMultipleRoutes(startNode, endNode);
+    renderRouteOptions(routes);
+    clickState = 2;
   }
 });
+
 
   
 function findMultipleRoutes(start, end, numRoutes = 3) {
