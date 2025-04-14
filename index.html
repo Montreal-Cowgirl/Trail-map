@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interactive Trail Map v1.002</title>
+  <title>Interactive Trail Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
@@ -232,7 +232,7 @@ function findClosestNode(latLng) {
       closestNode = key;
     }
   });
-  return closestNode;
+  return minDist < 0.05 ? closestNode : null; // 50 meters tolerance
 }
 
 trailFilterSelect.addEventListener('change', () => {
@@ -283,6 +283,14 @@ map.on('click', function (e) {
   const snapped = turf.nearestPointOnLine(trailLine, turf.point([latlng.lng, latlng.lat]));
   const snappedCoords = snapped.geometry.coordinates;
   const snappedLatLng = L.latLng(snappedCoords[1], snappedCoords[0]);
+
+  // DEBUG: Show snapped point
+  L.circleMarker(snappedLatLng, {
+  radius: 5,
+  color: 'blue',
+  fillOpacity: 0.6
+}).addTo(map);
+
   const nearestNode = findClosestNode(snappedLatLng);
 
   if (clickState === 0) {
@@ -295,8 +303,9 @@ map.on('click', function (e) {
     endMarker = L.marker(snappedLatLng, { icon: endIcon }).addTo(map);
     endNode = nearestNode;
 
-    if (!startNode || !endNode) {
-      alert("Could not find a nearby trail node.");
+    if (!startNode) console.warn("Failed to find nearby node for start point:", snappedStart.geometry.coordinates);
+    if (!endNode) console.warn("Failed to find nearby node for end point:", snappedEnd.geometry.coordinates);
+
       return;
     }
     
