@@ -309,124 +309,53 @@ map.on('click', function (e) {
 
   
 function findMultipleRoutes(start, end, numRoutes = 3) {
-  const allPaths = [], visitedPaths = new Set();
+    const allRoutes = [];
+    const blockedEdgesList = [[]]; // Start with no blocked edges
 
-  function getAngle(p1, p2, p3) {
-    const [lat1, lon1] = p1.split(',').map(Number);
-    const [lat2, lon2] = p2.split(',').map(Number);
-    const [lat3, lon3] = p3.split(',').map(Number);
-    const v1 = [lat2 - lat1, lon2 - lon1], v2 = [lat3 - lat2, lon3 - lon2];
-    const dot = v1[0]*v2[0] + v1[1]*v2[1];
-    const mag1 = Math.hypot(...v1), mag2 = Math.hypot(...v2);
-    return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
-  }
+    for (let i = 0; i < numRoutes * 2; i++) { // Try more times to find better variety
+        const blockedEdges = blockedEdgesList[i] || [];
+        const result = astar(start, end, blockedEdges);
 
-function aStarWithBlockedEdges(blockedEdges) {
-  const distances = {}, previous = {}, fScores = {};
-  const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-  const openSet = new Set([start]);
+        if (!result) continue;
 
-  Object.keys(graph).forEach(n => {
-    distances[n] = Infinity;
-    fScores[n] = Infinity;
-  });
-  distances[start] = 0;
-  fScores[start] = heuristic(start, end);
+        const coords = result.path.map(n => [n.lon, n.lat]);
+        const line = turf.lineString(coords);
+        const length = turf.length(line);
 
-  while (openSet.size > 0) {
-    // Get node with lowest fScore
-    let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+        // Filter out routes that are too similar
+        let isSimilar = false;
+        for (const r of allRoutes) {
+            const distDiff = Math.abs(r.length - length);
+            const overlap = turf.lineOverlap(line, r.line, { tolerance: 0.0001 });
+            const overlapLength = overlap.features.reduce((sum, f) => sum + turf.length(f), 0);
+            const overlapRatio = overlapLength / Math.min(length, r.length);
 
-    if (current === end) break;
+            // Allow slightly more overlap, and enforce a 10% distance difference
+            if (overlapRatio > 0.6 && distDiff < 0.1) {
+                isSimilar = true;
+                break;
+            }
+        }
 
-    openSet.delete(current);
+        if (!isSimilar) {
+            allRoutes.push({ line, path: result.path, length });
 
-    for (const neighbor of graph[current] || []) {
-      const edgeKey = `${current}->${neighbor.node}`;
-      if (blockedSet.has(edgeKey)) continue;
+            // Add new block list: block the last 2–3 edges in this route
+            const newBlockedEdges = [];
+            for (let j = result.path.length - 1; j > 0 && newBlockedEdges.length < 3; j--) {
+                const from = result.path[j - 1].id;
+                const to = result.path[j].id;
+                newBlockedEdges.push([from, to].join("->"));
+            }
+            blockedEdgesList.push(newBlockedEdges);
+        }
 
-      const tentativeG = distances[current] + neighbor.dist;
-      if (tentativeG < distances[neighbor.node]) {
-        distances[neighbor.node] = tentativeG;
-        previous[neighbor.node] = current;
-        fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
-        openSet.add(neighbor.node);
-      }
+        if (allRoutes.length >= numRoutes) break;
     }
-  }
 
-  // Reconstruct path
-  const path = [];
-  let curr = end;
-  while (previous[curr]) {
-    path.unshift(curr);
-    curr = previous[curr];
-  }
-  if (curr === start) {
-    path.unshift(start);
-    return path;
-  }
-  return [];
+    return allRoutes.map(r => r.path);
 }
 
-function heuristic(nodeA, nodeB) {
-  const [lat1, lon1] = nodeA.split(',').map(Number);
-  const [lat2, lon2] = nodeB.split(',').map(Number);
-  const from = turf.point([lon1, lat1]);
-  const to = turf.point([lon2, lat2]);
-  return turf.distance(from, to); // Returns distance in kilometers
-}
-  
-
-  // Create a Turf LineString from a route path
-  function pathToLine(path) {
-    return turf.lineString(path.map(p => p.split(',').map(Number)));
-  }
-
-  const firstPath = aStarWithBlockedEdges([]);
-  if (!firstPath.length) return allPaths;
-  allPaths.push(firstPath);
-  visitedPaths.add(firstPath.join('->'));
-
-  const firstLine = pathToLine(firstPath);
-  const firstLength = turf.length(firstLine);
-
-  const turnEdges = [];
-  for (let i = 1; i < firstPath.length - 1; i++) {
-    const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
-    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
-  }
-
-  for (const edge of turnEdges) {
-    const newPath = aStarWithBlockedEdges([edge]);
-    const pathStr = newPath.join('->');
-
-    if (!newPath.length || visitedPaths.has(pathStr)) continue;
-
-    const newLine = pathToLine(newPath);
-    const newLength = turf.length(newLine);
-
-    // Compare distance: skip if within 5%
-    const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
-    if (lengthDiff < 0.05) continue;
-
-    // Check spatial similarity (overlap)
-    const isTooSimilar = allPaths.some(existingPath => {
-      const existingLine = pathToLine(existingPath);
-      const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
-      const overlapLen = turf.length(overlap);
-      return overlapLen / turf.length(newLine) > 0.7;
-    });
-
-    if (!isTooSimilar) {
-      allPaths.push(newPath);
-      visitedPaths.add(pathStr);
-      if (allPaths.length >= numRoutes) break;
-    }
-  }
-
-  return allPaths;
-}
 
 
 function renderRouteOptions(routes) {
