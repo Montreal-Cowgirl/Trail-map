@@ -366,13 +366,10 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
 
 
 function calculateRouteOverlap(baseLine, altLine) {
-  const baseBuffer = turf.buffer(baseLine, 0.02, { units: 'kilometers' }); // ~20 meters
-  const clipped = turf.lineIntersect(altLine, baseBuffer);
-
-  // Approximate overlap: count % of altLine coordinates inside the base buffer
+  const baseBuffer = turf.buffer(baseLine, 0.02, { units: 'kilometers' }); // 20m buffer around base route
   const altCoords = altLine.geometry.coordinates;
-  let overlapCount = 0;
 
+  let overlapCount = 0;
   for (const coord of altCoords) {
     const pt = turf.point(coord);
     if (turf.booleanPointInPolygon(pt, baseBuffer)) {
@@ -382,6 +379,7 @@ function calculateRouteOverlap(baseLine, altLine) {
 
   return overlapCount / altCoords.length;
 }
+
 
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
