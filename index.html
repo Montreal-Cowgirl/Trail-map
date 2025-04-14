@@ -283,7 +283,7 @@ map.on('click', function (e) {
   const snapped = turf.nearestPointOnLine(trailLine, turf.point([latlng.lng, latlng.lat]));
   const snappedCoords = snapped.geometry.coordinates;
   const snappedLatLng = L.latLng(snappedCoords[1], snappedCoords[0]);
-  const nearestNode = findNearestNode(snappedLatLng);
+  const nearestNode = findClosestNode(snappedLatLng);
 
   if (clickState === 0) {
     // Place start marker
