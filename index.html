@@ -310,35 +310,60 @@ map.on('click', function (e) {
 
 
 function findMultipleRoutes(start, end, numRoutes = 3) {
-    const routes = [];
-    const blockedEdges = new Set();
+  const routeSimilarityThreshold = 0.9;
+  const distanceVariationThreshold = 0.2; // 20% difference allowed
 
-    for (let i = 0; i < numRoutes; i++) {
-        const path = shortestPath(start, end, graph, blockedEdges);
+  const routes = [];
+  const baseRoute = aStarWithBlockedEdges(start, end, []);
+  if (!baseRoute) return [];
 
-        if (!path || path.length === 0) break;
+  const baseLine = turf.lineString(baseRoute.map(k => k.split(',').map(Number)));
+  const baseDistance = turf.length(baseLine);
+  routes.push(baseRoute);
 
-        routes.push(path);
+  let attempts = 0;
+  const maxAttempts = 20;
 
-        // Block one edge from the previous path to get a different route next time
-        let blocked = false;
-        for (let j = 0; j < path.length - 1; j++) {
-            const from = path[j];
-            const to = path[j + 1];
-            const edgeKey = `${from}->${to}`;
+  while (routes.length < numRoutes && attempts < maxAttempts) {
+    attempts++;
 
-            if (!blockedEdges.has(edgeKey)) {
-                blockedEdges.add(edgeKey);
-                blocked = true;
-                break;
-            }
-        }
+    // Block one turn from a previous route
+    const prevRoute = routes[routes.length - 1];
+    const blockedEdges = [];
 
-        if (!blocked) break; // Stop if we can't block a new edge
+    for (let i = 1; i < prevRoute.length - 1; i++) {
+      const a = prevRoute[i - 1];
+      const b = prevRoute[i];
+      const c = prevRoute[i + 1];
+      const angle = getAngle(a, b, c);
+
+      if (angle < 170) {
+        blockedEdges.push([a, b, c]);
+        break; // Only block one turn
+      }
     }
 
-    renderRouteOptions(routes);
+    const altRoute = aStarWithBlockedEdges(start, end, blockedEdges);
+    if (!altRoute) continue;
+
+    const altLine = turf.lineString(altRoute.map(k => k.split(',').map(Number)));
+    const altDistance = turf.length(altLine);
+
+    // Compare shape similarity (line overlap)
+    const overlap = calculateRouteOverlap(baseLine, altLine);
+    const distanceDiff = Math.abs(altDistance - baseDistance) / baseDistance;
+
+    const isSimilar = overlap > routeSimilarityThreshold;
+    const isTooCloseInDistance = distanceDiff < distanceVariationThreshold;
+
+    if (!isSimilar || !isTooCloseInDistance) {
+      routes.push(altRoute);
+    }
+  }
+
+  return routes;
 }
+
 
 
 
