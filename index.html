@@ -365,25 +365,23 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
 }
 
 
+function calculateRouteOverlap(baseLine, altLine) {
+  const baseBuffer = turf.buffer(baseLine, 0.02, { units: 'kilometers' }); // ~20 meters
+  const clipped = turf.lineIntersect(altLine, baseBuffer);
 
+  // Approximate overlap: count % of altLine coordinates inside the base buffer
+  const altCoords = altLine.geometry.coordinates;
+  let overlapCount = 0;
 
-
-function calculateRouteOverlap(pathA, pathB) {
-  const setA = new Set(pathA);
-  const setB = new Set(pathB);
-  let overlap = 0;
-
-  for (const node of setA) {
-    if (setB.has(node)) overlap++;
+  for (const coord of altCoords) {
+    const pt = turf.point(coord);
+    if (turf.booleanPointInPolygon(pt, baseBuffer)) {
+      overlapCount++;
+    }
   }
 
-  const averageLength = (setA.size + setB.size) / 2;
-  return overlap / averageLength;
+  return overlapCount / altCoords.length;
 }
-
-
-
-
 
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
