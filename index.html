@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interactive Trail Map V1</title>
+  <title>Interactive Trail Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
@@ -25,14 +25,6 @@
   </style>
 </head>
 <body>
-<div style="padding: 1rem; background: #eee;">
-  <label for="trail-type">Trail Type:</label>
-  <select id="trail-type">
-    <option value="all">All</option>
-    <option value="ete">Summer (Été + Saison)</option>
-    <option value="hiver">Winter (Hiver + Saison)</option>
-  </select>
-</div>
 
 <div id="map"></div>
 
@@ -54,6 +46,27 @@
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
+// Request and show user location with a marker
+map.locate({ setView: true, maxZoom: 16 });
+
+function onLocationFound(e) {
+  const radius = e.accuracy;
+  const userMarker = L.marker(e.latlng)
+    .addTo(map)
+    .bindPopup("You are here")
+    .openPopup();
+
+  // Optional: show accuracy circle
+  // L.circle(e.latlng, radius).addTo(map);
+}
+
+function onLocationError(e) {
+  alert("Location access denied or unavailable.");
+}
+
+map.on('locationfound', onLocationFound);
+map.on('locationerror', onLocationError);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
