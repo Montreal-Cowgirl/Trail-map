@@ -310,45 +310,36 @@ map.on('click', function (e) {
 
 
 function findMultipleRoutes(start, end, numRoutes = 3) {
-  const allRoutes = [];
-  const visitedEdges = new Set();
+    const routes = [];
+    const blockedEdges = new Set();
 
-  // Get the base path
-  const basePath = aStarSearch(start, end, graph);
-  if (!basePath) return;
+    for (let i = 0; i < numRoutes; i++) {
+        const path = shortestPath(start, end, graph, blockedEdges);
 
-  allRoutes.push(basePath);
-  let attempts = 0;
-  const maxAttempts = 20;
+        if (!path || path.length === 0) break;
 
-  while (allRoutes.length < numRoutes && attempts < maxAttempts) {
-    attempts++;
+        routes.push(path);
 
-    // Block edges from previous paths
-    const tempBlockedEdges = new Set();
-    for (const path of allRoutes) {
-      for (let i = 0; i < path.length - 1; i++) {
-        const edge = `${path[i]}-${path[i + 1]}`;
-        if (!visitedEdges.has(edge)) {
-          tempBlockedEdges.add(edge);
+        // Block one edge from the previous path to get a different route next time
+        let blocked = false;
+        for (let j = 0; j < path.length - 1; j++) {
+            const from = path[j];
+            const to = path[j + 1];
+            const edgeKey = `${from}->${to}`;
+
+            if (!blockedEdges.has(edgeKey)) {
+                blockedEdges.add(edgeKey);
+                blocked = true;
+                break;
+            }
         }
-      }
+
+        if (!blocked) break; // Stop if we can't block a new edge
     }
 
-    const altPath = aStarSearch(start, end, graph, tempBlockedEdges);
-    if (!altPath || altPath.length === 0) continue;
-
-    const overlap = calculateRouteOverlap(basePath, altPath);
-    if (overlap < routeSimilarityThreshold) {
-      allRoutes.push(altPath);
-      for (let i = 0; i < altPath.length - 1; i++) {
-        visitedEdges.add(`${altPath[i]}-${altPath[i + 1]}`);
-      }
-    }
-  }
-
-  renderRouteOptions(allRoutes);
+    renderRouteOptions(routes);
 }
+
 
 
 
