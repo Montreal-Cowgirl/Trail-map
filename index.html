@@ -308,53 +308,50 @@ map.on('click', function (e) {
 
 
   
-function findMultipleRoutes(start, end, numRoutes = 3) {
-    const allRoutes = [];
-    const blockedEdgesList = [[]]; // Start with no blocked edges
+function findMultipleRoutes(startNode, endNode, maxRoutes = 3) {
+  const routes = [];
 
-    for (let i = 0; i < numRoutes * 2; i++) { // Try more times to find better variety
-        const blockedEdges = blockedEdgesList[i] || [];
-        const result = astar(start, end, blockedEdges);
+  // First, find the shortest route with no blocked edges
+  const initial = runAStar(startNode, endNode);
+  if (!initial || initial.path.length === 0) return [];
 
-        if (!result) continue;
+  routes.push(initial);
 
-        const coords = result.path.map(n => [n.lon, n.lat]);
-        const line = turf.lineString(coords);
-        const length = turf.length(line);
+  const edgeToString = (edge) => `${edge[0]}-${edge[1]}`;
 
-        // Filter out routes that are too similar
-        let isSimilar = false;
-        for (const r of allRoutes) {
-            const distDiff = Math.abs(r.length - length);
-            const overlap = turf.lineOverlap(line, r.line, { tolerance: 0.0001 });
-            const overlapLength = overlap.features.reduce((sum, f) => sum + turf.length(f), 0);
-            const overlapRatio = overlapLength / Math.min(length, r.length);
+  for (let attempt = 0; attempt < 20 && routes.length < maxRoutes; attempt++) {
+    const blockedEdges = new Set();
 
-            // Allow slightly more overlap, and enforce a 10% distance difference
-            if (overlapRatio > 0.6 && distDiff < 0.1) {
-                isSimilar = true;
-                break;
-            }
-        }
-
-        if (!isSimilar) {
-            allRoutes.push({ line, path: result.path, length });
-
-            // Add new block list: block the last 2–3 edges in this route
-            const newBlockedEdges = [];
-            for (let j = result.path.length - 1; j > 0 && newBlockedEdges.length < 3; j--) {
-                const from = result.path[j - 1].id;
-                const to = result.path[j].id;
-                newBlockedEdges.push([from, to].join("->"));
-            }
-            blockedEdgesList.push(newBlockedEdges);
-        }
-
-        if (allRoutes.length >= numRoutes) break;
+    // Block one or more edges from previous routes to encourage diversity
+    for (let i = 0; i < routes.length; i++) {
+      const prev = routes[i].path;
+      for (let j = 0; j < prev.length - 1; j++) {
+        const edge = edgeToString([prev[j], prev[j + 1]]);
+        blockedEdges.add(edge);
+        blockedEdges.add(edgeToString([prev[j + 1], prev[j]])); // bidirectional
+      }
     }
 
-    return allRoutes.map(r => r.path);
+    const alt = runAStar(startNode, endNode, blockedEdges);
+    if (!alt || alt.path.length === 0) continue;
+
+    // Check if this path is too similar to an existing one
+    const isDuplicate = routes.some(r => {
+      if (r.path.length !== alt.path.length) return false;
+      return r.path.every((node, idx) => node === alt.path[idx]);
+    });
+
+    if (!isDuplicate) {
+      routes.push(alt);
+    }
+  }
+
+  // Sort by total distance (shortest to longest)
+  routes.sort((a, b) => a.totalDistance - b.totalDistance);
+
+  return routes.slice(0, maxRoutes);
 }
+
 
 
 
