@@ -29,6 +29,11 @@
       maxZoom: 19,
     }).addTo(map);
 
+    map.locate({ setView: true, maxZoom: 16 });
+    map.on('locationfound', e => {
+      L.circleMarker(e.latlng, { radius: 6, color: 'blue', fillColor: 'blue', fillOpacity: 0.5 }).addTo(map);
+    });
+
     const trailLayer = L.geoJSON(null, { style: { color: 'blue', weight: 3 } }).addTo(map);
     let startMarker = null;
     let endMarker = null;
@@ -36,6 +41,7 @@
     let clickState = 0;
 
     let trailData = null;
+    let filteredTrailData = null;
     let graph = {};
     const turnPenalty = 0.001;
     const routeSimilarityThreshold = 0.85;
@@ -45,12 +51,13 @@
       .then(data => {
         trailData = data;
         updateTrailLayer('all');
-        buildGraph(trailData);
+        buildGraph(filteredTrailData);
       });
 
     function updateTrailLayer(seasonMode) {
+      filteredTrailData = filterTrailsBySeason(trailData, seasonMode);
       trailLayer.clearLayers();
-      trailLayer.addData(filterTrailsBySeason(trailData, seasonMode));
+      trailLayer.addData(filteredTrailData);
     }
 
     function filterTrailsBySeason(data, mode) {
@@ -68,7 +75,7 @@
     document.querySelectorAll('input[name="season"]').forEach(input => {
       input.addEventListener('change', () => {
         updateTrailLayer(input.value);
-        buildGraph(filterTrailsBySeason(trailData, input.value));
+        buildGraph(filteredTrailData);
       });
     });
 
@@ -90,7 +97,7 @@
 
     map.on('click', e => {
       const clickedPoint = turf.point([e.latlng.lng, e.latlng.lat]);
-      const snapped = turf.nearestPointOnLine(trailLayer.toGeoJSON(), clickedPoint);
+      const snapped = turf.nearestPointOnLine(filteredTrailData, clickedPoint);
       const snappedLatLng = L.latLng(snapped.geometry.coordinates[1], snapped.geometry.coordinates[0]);
 
       if (clickState === 0) {
