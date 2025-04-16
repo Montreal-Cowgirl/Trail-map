@@ -307,7 +307,6 @@ map.on('click', function (e) {
 });
 
 
-  
 function findMultipleRoutes(start, end, numRoutes = 3) {
   const allPaths = [], visitedPaths = new Set();
 
@@ -321,64 +320,58 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
     return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
   }
 
-function aStarWithBlockedEdges(blockedEdges) {
-  const distances = {}, previous = {}, fScores = {};
-  const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-  const openSet = new Set([start]);
+  function heuristic(nodeA, nodeB) {
+    const [lat1, lon1] = nodeA.split(',').map(Number);
+    const [lat2, lon2] = nodeB.split(',').map(Number);
+    const from = turf.point([lon1, lat1]);
+    const to = turf.point([lon2, lat2]);
+    return turf.distance(from, to); // kilometers
+  }
 
-  Object.keys(graph).forEach(n => {
-    distances[n] = Infinity;
-    fScores[n] = Infinity;
-  });
-  distances[start] = 0;
-  fScores[start] = heuristic(start, end);
+  function aStarWithBlockedEdges(blockedEdges) {
+    const distances = {}, previous = {}, fScores = {};
+    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+    const openSet = new Set([start]);
 
-  while (openSet.size > 0) {
-    // Get node with lowest fScore
-    let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+    Object.keys(graph).forEach(n => {
+      distances[n] = Infinity;
+      fScores[n] = Infinity;
+    });
+    distances[start] = 0;
+    fScores[start] = heuristic(start, end);
 
-    if (current === end) break;
+    while (openSet.size > 0) {
+      let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+      if (current === end) break;
+      openSet.delete(current);
 
-    openSet.delete(current);
+      for (const neighbor of graph[current] || []) {
+        const edgeKey = `${current}->${neighbor.node}`;
+        if (blockedSet.has(edgeKey)) continue;
 
-    for (const neighbor of graph[current] || []) {
-      const edgeKey = `${current}->${neighbor.node}`;
-      if (blockedSet.has(edgeKey)) continue;
-
-      const tentativeG = distances[current] + neighbor.dist;
-      if (tentativeG < distances[neighbor.node]) {
-        distances[neighbor.node] = tentativeG;
-        previous[neighbor.node] = current;
-        fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
-        openSet.add(neighbor.node);
+        const tentativeG = distances[current] + neighbor.dist;
+        if (tentativeG < distances[neighbor.node]) {
+          distances[neighbor.node] = tentativeG;
+          previous[neighbor.node] = current;
+          fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
+          openSet.add(neighbor.node);
+        }
       }
     }
+
+    const path = [];
+    let curr = end;
+    while (previous[curr]) {
+      path.unshift(curr);
+      curr = previous[curr];
+    }
+    if (curr === start) {
+      path.unshift(start);
+      return path;
+    }
+    return [];
   }
 
-  // Reconstruct path
-  const path = [];
-  let curr = end;
-  while (previous[curr]) {
-    path.unshift(curr);
-    curr = previous[curr];
-  }
-  if (curr === start) {
-    path.unshift(start);
-    return path;
-  }
-  return [];
-}
-
-function heuristic(nodeA, nodeB) {
-  const [lat1, lon1] = nodeA.split(',').map(Number);
-  const [lat2, lon2] = nodeB.split(',').map(Number);
-  const from = turf.point([lon1, lat1]);
-  const to = turf.point([lon2, lat2]);
-  return turf.distance(from, to); // Returns distance in kilometers
-}
-  
-
-  // Create a Turf LineString from a route path
   function pathToLine(path) {
     return turf.lineString(path.map(p => p.split(',').map(Number)));
   }
@@ -398,35 +391,33 @@ function heuristic(nodeA, nodeB) {
   }
 
   for (const edge of turnEdges) {
+    if (allPaths.length >= numRoutes) break;
+
     const newPath = aStarWithBlockedEdges([edge]);
     const pathStr = newPath.join('->');
-
     if (!newPath.length || visitedPaths.has(pathStr)) continue;
 
     const newLine = pathToLine(newPath);
     const newLength = turf.length(newLine);
-
-    // Compare distance: skip if within 5%
     const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
     if (lengthDiff < 0.05) continue;
 
-    // Check spatial similarity (overlap)
     const isTooSimilar = allPaths.some(existingPath => {
-      const existingLine = pathToLine(existingPath);
-      const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
-      const overlapLen = turf.length(overlap);
-      return overlapLen / turf.length(newLine) > 0.7;
+      const line1 = pathToLine(existingPath);
+      const intersection = turf.lineOverlap(line1, newLine, { tolerance: 0.0001 });
+      const overlapRatio = turf.length(intersection) / turf.length(newLine);
+      return overlapRatio > 0.8;
     });
 
     if (!isTooSimilar) {
       allPaths.push(newPath);
       visitedPaths.add(pathStr);
-      if (allPaths.length >= numRoutes) break;
     }
   }
 
   return allPaths;
 }
+
 
 
 function renderRouteOptions(routes) {
