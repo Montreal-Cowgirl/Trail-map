@@ -307,117 +307,118 @@ map.on('click', function (e) {
 });
 
 
-function findMultipleRoutes(start, end, numRoutes = 3) {
-  const allPaths = [], visitedPaths = new Set();
+function findMultipleRoutes(startNodeId, endNodeId, graph, numRoutes = 3) {
+    const routes = [];
+    const blockedEdges = new Set();
+    const MIN_ROUTE_LENGTH = 20; // Minimum number of nodes
+    const ANGLE_THRESHOLD = 30; // Degrees
 
-  function getAngle(p1, p2, p3) {
-    const [lat1, lon1] = p1.split(',').map(Number);
-    const [lat2, lon2] = p2.split(',').map(Number);
-    const [lat3, lon3] = p3.split(',').map(Number);
-    const v1 = [lat2 - lat1, lon2 - lon1], v2 = [lat3 - lat2, lon3 - lon2];
-    const dot = v1[0]*v2[0] + v1[1]*v2[1];
-    const mag1 = Math.hypot(...v1), mag2 = Math.hypot(...v2);
-    return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
-  }
+    function angleBetween(p1, p2, p3) {
+        const angle = Math.abs(
+            turf.bearing(turf.point(p2), turf.point(p1)) -
+            turf.bearing(turf.point(p2), turf.point(p3))
+        );
+        return Math.min(angle, 360 - angle);
+    }
 
-  function heuristic(nodeA, nodeB) {
-    const [lat1, lon1] = nodeA.split(',').map(Number);
-    const [lat2, lon2] = nodeB.split(',').map(Number);
-    const from = turf.point([lon1, lat1]);
-    const to = turf.point([lon2, lat2]);
-    return turf.distance(from, to); // kilometers
-  }
-
-  function aStarWithBlockedEdges(blockedEdges) {
-    const distances = {}, previous = {}, fScores = {};
-    const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
-    const openSet = new Set([start]);
-
-    Object.keys(graph).forEach(n => {
-      distances[n] = Infinity;
-      fScores[n] = Infinity;
-    });
-    distances[start] = 0;
-    fScores[start] = heuristic(start, end);
-
-    while (openSet.size > 0) {
-      let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
-      if (current === end) break;
-      openSet.delete(current);
-
-      for (const neighbor of graph[current] || []) {
-        const edgeKey = `${current}->${neighbor.node}`;
-        if (blockedSet.has(edgeKey)) continue;
-
-        const tentativeG = distances[current] + neighbor.dist;
-        if (tentativeG < distances[neighbor.node]) {
-          distances[neighbor.node] = tentativeG;
-          previous[neighbor.node] = current;
-          fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
-          openSet.add(neighbor.node);
+    function routeToEdges(route) {
+        const edges = [];
+        for (let i = 0; i < route.length - 1; i++) {
+            edges.push(`${route[i]}->${route[i + 1]}`);
         }
-      }
+        return edges;
     }
 
-    const path = [];
-    let curr = end;
-    while (previous[curr]) {
-      path.unshift(curr);
-      curr = previous[curr];
+    function routeToHash(route) {
+        return route.join(">");
     }
-    if (curr === start) {
-      path.unshift(start);
-      return path;
+
+    function hasSharpTurn(route) {
+        for (let i = 1; i < route.length - 1; i++) {
+            const prev = graph.nodes[route[i - 1]];
+            const curr = graph.nodes[route[i]];
+            const next = graph.nodes[route[i + 1]];
+            if (!prev || !curr || !next) continue;
+            const angle = angleBetween(prev, curr, next);
+            if (angle < ANGLE_THRESHOLD) return true;
+        }
+        return false;
     }
-    return [];
-  }
 
-  function pathToLine(path) {
-    return turf.lineString(path.map(p => p.split(',').map(Number)));
-  }
+    function findPath(blockedEdges) {
+        const openSet = new Set([startNodeId]);
+        const cameFrom = {};
+        const gScore = {};
+        const fScore = {};
 
-  const firstPath = aStarWithBlockedEdges([]);
-  if (!firstPath.length) return allPaths;
-  allPaths.push(firstPath);
-  visitedPaths.add(firstPath.join('->'));
+        Object.keys(graph.nodes).forEach(n => {
+            gScore[n] = Infinity;
+            fScore[n] = Infinity;
+        });
+        gScore[startNodeId] = 0;
+        fScore[startNodeId] = turf.distance(
+            turf.point(graph.nodes[startNodeId]),
+            turf.point(graph.nodes[endNodeId])
+        );
 
-  const firstLine = pathToLine(firstPath);
-  const firstLength = turf.length(firstLine);
+        while (openSet.size > 0) {
+            let current = [...openSet].reduce((a, b) => fScore[a] < fScore[b] ? a : b);
 
-  const turnEdges = [];
-  for (let i = 1; i < firstPath.length - 1; i++) {
-    const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
-    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
-  }
+            if (current === endNodeId) {
+                const path = [];
+                let node = endNodeId;
+                while (node) {
+                    path.unshift(node);
+                    node = cameFrom[node];
+                }
+                return path;
+            }
 
-  for (const edge of turnEdges) {
-    if (allPaths.length >= numRoutes) break;
+            openSet.delete(current);
+            for (const neighbor of graph.edges[current]) {
+                const edgeKey = `${current}->${neighbor}`;
+                if (blockedEdges.has(edgeKey)) continue;
 
-    const newPath = aStarWithBlockedEdges([edge]);
-    const pathStr = newPath.join('->');
-    if (!newPath.length || visitedPaths.has(pathStr)) continue;
+                const tentativeG = gScore[current] + turf.distance(
+                    turf.point(graph.nodes[current]),
+                    turf.point(graph.nodes[neighbor])
+                );
 
-    const newLine = pathToLine(newPath);
-    const newLength = turf.length(newLine);
-    const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
-    if (lengthDiff < 0.05) continue;
-
-    const isTooSimilar = allPaths.some(existingPath => {
-      const line1 = pathToLine(existingPath);
-      const intersection = turf.lineOverlap(line1, newLine, { tolerance: 0.0001 });
-      const overlapRatio = turf.length(intersection) / turf.length(newLine);
-      return overlapRatio > 0.8;
-    });
-
-    if (!isTooSimilar) {
-      allPaths.push(newPath);
-      visitedPaths.add(pathStr);
+                if (tentativeG < gScore[neighbor]) {
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeG;
+                    fScore[neighbor] = tentativeG + turf.distance(
+                        turf.point(graph.nodes[neighbor]),
+                        turf.point(graph.nodes[endNodeId])
+                    );
+                    openSet.add(neighbor);
+                }
+            }
+        }
+        return null;
     }
-  }
 
-  return allPaths;
+    const seenHashes = new Set();
+
+    for (let i = 0; i < numRoutes; i++) {
+        const path = findPath(blockedEdges);
+        if (!path || path.length < MIN_ROUTE_LENGTH) break;
+
+        const hash = routeToHash(path);
+        if (seenHashes.has(hash)) continue;
+        seenHashes.add(hash);
+
+        if (!hasSharpTurn(path)) {
+            routes.push(path);
+        }
+
+        for (const edge of routeToEdges(path)) {
+            blockedEdges.add(edge);
+        }
+    }
+
+    return routes;
 }
-
 
 
 function renderRouteOptions(routes) {
