@@ -228,8 +228,15 @@ function findClosestNode(latLng) {
 trailFilterSelect.addEventListener('change', () => {
   rebuildTrailNetwork(trailFilterSelect.value);
 
-  // ⬇️ Rebuild trailLine from currently visible filtered trails
-  const visibleFeatures = filteredLayer.getLayers().map(layer => layer.feature);
+  // Rebuild trailLine from currently visible filtered trails
+  const visibleFeatures = filteredLayer.getLayers().map(layer => {
+    // Ensure layer is a valid GeoJSON feature with 'geometry'
+    if (layer.feature && layer.feature.geometry) {
+      return layer.feature;
+    }
+    return null;  // Return null if not a valid feature
+  }).filter(feature => feature !== null);  // Remove invalid features
+
   const allCoords = visibleFeatures.flatMap(f => f.geometry.coordinates);
   trailLine = turf.lineString(allCoords);
 
