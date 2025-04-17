@@ -101,6 +101,27 @@ function addEdge(a, b, dist) {
   graph[a].push({ node: b, dist });
 }
 
+  const filtered = {
+    type: "FeatureCollection",
+    features: originalTrailData.features.filter(f => {
+      const rawName = f.properties.name || "";
+      const name = rawName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      const hasEte = name.includes("ete");
+      const hasHiver = name.includes("hiver");
+      const hasSaison = name.includes("saison");
+
+      if (mode === "all") return true;
+      if (mode === "ete") return hasEte || hasSaison;
+      if (mode === "hiver") return hasHiver || hasSaison;
+
+      return false;
+    })
+  };
+  
 console.log(filtered);  // Log the filtered data to the console
 
 buildGraph(filtered);  // Call buildGraph with the filtered data
@@ -171,27 +192,6 @@ function updateTrailDisplay(mode) {
   if (filteredLayer) map.removeLayer(filteredLayer);
   graph = {};
   nodeCoords = {};
-
-  const filtered = {
-    type: "FeatureCollection",
-    features: originalTrailData.features.filter(f => {
-      const rawName = f.properties.name || "";
-      const name = rawName
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-
-      const hasEte = name.includes("ete");
-      const hasHiver = name.includes("hiver");
-      const hasSaison = name.includes("saison");
-
-      if (mode === "all") return true;
-      if (mode === "ete") return hasEte || hasSaison;
-      if (mode === "hiver") return hasHiver || hasSaison;
-
-      return false;
-    })
-  };
 
   filteredLayer = L.geoJSON(filtered, { color: 'blue' }).addTo(map);
   buildGraph(filtered);
