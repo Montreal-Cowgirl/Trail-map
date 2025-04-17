@@ -230,11 +230,14 @@ trailFilterSelect.addEventListener('change', () => {
   rebuildTrailNetwork(trailFilterSelect.value);
 
   // ⬇️ Rebuild trailLine from currently visible filtered trails
-  const visibleFeatures = filteredLayer.getLayers()
-    .map(layer => layer.feature)
+  const mode = trailFilterSelect.value;
+  const filteredData = filterTrails(mode);
+  
+  const visibleFeatures = filteredData.features
     .filter(f => f?.geometry?.type === "LineString" && f.geometry.coordinates.length >= 2);
-
+  
   const allCoords = visibleFeatures.flatMap(f => f.geometry.coordinates);
+
 
   if (allCoords.length >= 2) {
     trailLine = turf.lineString(allCoords);
