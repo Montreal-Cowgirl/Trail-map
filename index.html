@@ -7,8 +7,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinyqueue/1.3.2/tinyqueue.min.js"></script> <!-- Ensure this is before custom scripts -->
-
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 80vh; width: 100vw; }
@@ -26,7 +24,6 @@
     }
   </style>
 </head>
-
 <body>
 
 <div id="map"></div>
@@ -73,7 +70,7 @@ map.on('locationerror', onLocationError);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
-let originalTrailData; // must be global so other functions can use it
+let originalTrailData = null;
 let filteredLayer = null;
 let graph = {}, nodeCoords = {};
 let startMarker=null, endMarker=null, clickCount = 0, startNode = null, endNode = null;
@@ -101,43 +98,12 @@ function addEdge(a, b, dist) {
   graph[a].push({ node: b, dist });
 }
 
-  const filtered = {
-    type: "FeatureCollection",
-    features: originalTrailData.features.filter(f => {
-      const rawName = f.properties.name || "";
-      const name = rawName
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-
-      const hasEte = name.includes("ete");
-      const hasHiver = name.includes("hiver");
-      const hasSaison = name.includes("saison");
-
-      if (mode === "all") return true;
-      if (mode === "ete") return hasEte || hasSaison;
-      if (mode === "hiver") return hasHiver || hasSaison;
-
-      return false;
-    })
-  };
-  
-console.log(filtered);  // Log the filtered data to the console
-
-buildGraph(filtered);  // Call buildGraph with the filtered data
-
 function buildGraph(data) {
-  // Check if the data contains a valid 'features' array
-  if (!data || !Array.isArray(data.features)) {
-    console.error('Invalid data passed to buildGraph. Missing or invalid "features" array.', data);
-    return; // Early exit if the data is not valid
-  }
-
   graph = {};
   nodeCoords = {};
 
   data.features.forEach(f => {
-    if (f.geometry && f.geometry.type === 'LineString') {
+    if (f.geometry.type === 'LineString') {
       const coords = f.geometry.coordinates;
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coordKey(coords[i]);
@@ -151,8 +117,6 @@ function buildGraph(data) {
     }
   });
 }
-
-
 
 function connectNearbySegments(data, threshold = 25) {
   const lineSegments = [];
@@ -192,6 +156,27 @@ function updateTrailDisplay(mode) {
   if (filteredLayer) map.removeLayer(filteredLayer);
   graph = {};
   nodeCoords = {};
+
+  const filtered = {
+    type: "FeatureCollection",
+    features: originalTrailData.features.filter(f => {
+      const rawName = f.properties.name || "";
+      const name = rawName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      const hasEte = name.includes("ete");
+      const hasHiver = name.includes("hiver");
+      const hasSaison = name.includes("saison");
+
+      if (mode === "all") return true;
+      if (mode === "ete") return hasEte || hasSaison;
+      if (mode === "hiver") return hasHiver || hasSaison;
+
+      return false;
+    })
+  };
 
   filteredLayer = L.geoJSON(filtered, { color: 'blue' }).addTo(map);
   buildGraph(filtered);
@@ -321,96 +306,126 @@ map.on('click', function (e) {
   }
 });
 
-function findPath(graph, startNodeId, endNodeId, blockedEdges) {
-  const queue = new TinyQueue([], (a, b) => a.priority - b.priority);
-  const visited = new Set();
-  const cameFrom = {};
-  const costSoFar = {};
-  queue.push({ node: startNodeId, priority: 0 });
-  costSoFar[startNodeId] = 0;
 
-  while (queue.length) {
-    const current = queue.pop().node;
+  
+function findMultipleRoutes(start, end, numRoutes = 3) {
+  const allPaths = [], visitedPaths = new Set();
 
-    if (current === endNodeId) break;
+  function getAngle(p1, p2, p3) {
+    const [lat1, lon1] = p1.split(',').map(Number);
+    const [lat2, lon2] = p2.split(',').map(Number);
+    const [lat3, lon3] = p3.split(',').map(Number);
+    const v1 = [lat2 - lat1, lon2 - lon1], v2 = [lat3 - lat2, lon3 - lon2];
+    const dot = v1[0]*v2[0] + v1[1]*v2[1];
+    const mag1 = Math.hypot(...v1), mag2 = Math.hypot(...v2);
+    return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
+  }
 
-    if (!graph.nodes[current]) continue;
+function aStarWithBlockedEdges(blockedEdges) {
+  const distances = {}, previous = {}, fScores = {};
+  const blockedSet = new Set(blockedEdges.map(e => `${e[0]}->${e[1]}`));
+  const openSet = new Set([start]);
 
-    for (const neighbor of graph.nodes[current]) {
-      const edgeId = graph.edgeMap[`${current}-${neighbor.id}`] || graph.edgeMap[`${neighbor.id}-${current}`];
-      if (blockedEdges.has(edgeId)) continue;
+  Object.keys(graph).forEach(n => {
+    distances[n] = Infinity;
+    fScores[n] = Infinity;
+  });
+  distances[start] = 0;
+  fScores[start] = heuristic(start, end);
 
-      const newCost = costSoFar[current] + neighbor.weight;
-      if (costSoFar[neighbor.id] === undefined || newCost < costSoFar[neighbor.id]) {
-        costSoFar[neighbor.id] = newCost;
-        const priority = newCost + heuristic(graph.positions[neighbor.id], graph.positions[endNodeId]);
-        queue.push({ node: neighbor.id, priority });
-        cameFrom[neighbor.id] = current;
+  while (openSet.size > 0) {
+    // Get node with lowest fScore
+    let current = [...openSet].reduce((a, b) => fScores[a] < fScores[b] ? a : b);
+
+    if (current === end) break;
+
+    openSet.delete(current);
+
+    for (const neighbor of graph[current] || []) {
+      const edgeKey = `${current}->${neighbor.node}`;
+      if (blockedSet.has(edgeKey)) continue;
+
+      const tentativeG = distances[current] + neighbor.dist;
+      if (tentativeG < distances[neighbor.node]) {
+        distances[neighbor.node] = tentativeG;
+        previous[neighbor.node] = current;
+        fScores[neighbor.node] = tentativeG + heuristic(neighbor.node, end);
+        openSet.add(neighbor.node);
       }
     }
   }
 
+  // Reconstruct path
   const path = [];
-  let current = endNodeId;
-  while (current !== startNodeId) {
-    if (!(current in cameFrom)) return null;
-    path.push(current);
-    current = cameFrom[current];
+  let curr = end;
+  while (previous[curr]) {
+    path.unshift(curr);
+    curr = previous[curr];
   }
-  path.push(startNodeId);
-  path.reverse();
-  return path;
+  if (curr === start) {
+    path.unshift(start);
+    return path;
+  }
+  return [];
 }
 
+function heuristic(nodeA, nodeB) {
+  const [lat1, lon1] = nodeA.split(',').map(Number);
+  const [lat2, lon2] = nodeB.split(',').map(Number);
+  const from = turf.point([lon1, lat1]);
+  const to = turf.point([lon2, lat2]);
+  return turf.distance(from, to); // Returns distance in kilometers
+}
   
-function findMultipleRoutes(startNodeId, endNodeId) {
-    const maxRoutes = 5;
-    const angleThreshold = 10; // degrees
-    const uniquenessThreshold = 5; // meters
-    const minRouteLength = 30; // meters
 
-    let allRoutes = [];
-    let blockedEdges = new Set();
+  // Create a Turf LineString from a route path
+  function pathToLine(path) {
+    return turf.lineString(path.map(p => p.split(',').map(Number)));
+  }
 
-    for (let i = 0; i < maxRoutes; i++) {
-        const graph = buildGraph(); // ensure graph is rebuilt every time
-        const route = findPath(graph, startNodeId, endNodeId, blockedEdges);
-        if (!route || route.length < 2) break;
+  const firstPath = aStarWithBlockedEdges([]);
+  if (!firstPath.length) return allPaths;
+  allPaths.push(firstPath);
+  visitedPaths.add(firstPath.join('->'));
 
-        const routeCoords = route.map(nodeId => nodeCoordinates[nodeId]);
-        const length = calculatePathLength(routeCoords);
-        if (length < minRouteLength) break;
+  const firstLine = pathToLine(firstPath);
+  const firstLength = turf.length(firstLine);
 
-        // Check uniqueness against previous routes
-        let isUnique = true;
-        for (const otherRoute of allRoutes) {
-            const otherCoords = otherRoute.map(nodeId => nodeCoordinates[nodeId]);
-            const distance = comparePaths(routeCoords, otherCoords);
-            if (distance < uniquenessThreshold) {
-                isUnique = false;
-                break;
-            }
-        }
+  const turnEdges = [];
+  for (let i = 1; i < firstPath.length - 1; i++) {
+    const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
+    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
+  }
 
-        if (isUnique) {
-            allRoutes.push(route);
+  for (const edge of turnEdges) {
+    const newPath = aStarWithBlockedEdges([edge]);
+    const pathStr = newPath.join('->');
 
-            // Block one edge at turning point
-            const turningIndex = findTurningPoint(routeCoords, angleThreshold);
-            if (turningIndex !== -1 && turningIndex < route.length - 1) {
-                const a = route[turningIndex];
-                const b = route[turningIndex + 1];
-                blockedEdges.add(`${a}-${b}`);
-                blockedEdges.add(`${b}-${a}`);
-            } else {
-                break;
-            }
-        } else {
-            break;
-        }
+    if (!newPath.length || visitedPaths.has(pathStr)) continue;
+
+    const newLine = pathToLine(newPath);
+    const newLength = turf.length(newLine);
+
+    // Compare distance: skip if within 5%
+    const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
+    if (lengthDiff < 0.05) continue;
+
+    // Check spatial similarity (overlap)
+    const isTooSimilar = allPaths.some(existingPath => {
+      const existingLine = pathToLine(existingPath);
+      const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
+      const overlapLen = turf.length(overlap);
+      return overlapLen / turf.length(newLine) > 0.7;
+    });
+
+    if (!isTooSimilar) {
+      allPaths.push(newPath);
+      visitedPaths.add(pathStr);
+      if (allPaths.length >= numRoutes) break;
     }
+  }
 
-    renderRoutes(allRoutes);
+  return allPaths;
 }
 
 
