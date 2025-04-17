@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interactive Trail Map v1.006</title>
+  <title>Interactive Trail Map v1.007</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -458,7 +458,7 @@ for (const edge of turnEdges) {
     const existingLine = pathToLine(existingPath);
     const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
     overlapLen = turf.length(overlap);
-    return overlapLen / turf.length(newLine) > 0.85;
+    return overlapLen / turf.length(newLine) > 0.90;
   });
 
   // ✅ Logging attempt details:
