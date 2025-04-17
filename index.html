@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinyqueue/1.3.2/tinyqueue.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinyqueue/1.3.2/tinyqueue.min.js"></script> <!-- Ensure this is before custom scripts -->
+
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 80vh; width: 100vw; }
@@ -25,6 +26,7 @@
     }
   </style>
 </head>
+
 <body>
 
 <div id="map"></div>
@@ -98,6 +100,10 @@ function addEdge(a, b, dist) {
   if (!graph[a]) graph[a] = [];
   graph[a].push({ node: b, dist });
 }
+
+console.log(filtered);  // Log the filtered data to the console
+
+buildGraph(filtered);  // Call buildGraph with the filtered data
 
 function buildGraph(data) {
   // Check if the data contains a valid 'features' array
