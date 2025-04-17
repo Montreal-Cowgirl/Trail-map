@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinyqueue/1.3.2/tinyqueue.min.js"></script>
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 80vh; width: 100vw; }
@@ -99,29 +100,31 @@ function addEdge(a, b, dist) {
 }
 
 function buildGraph(data) {
-    if (!data || !data.features || !Array.isArray(data.features)) {
-        console.error("Invalid data passed to buildGraph. Missing or invalid 'features' array.", data);
-        return; // Return early or handle as needed if data is invalid
+  // Check if the data contains a valid 'features' array
+  if (!data || !Array.isArray(data.features)) {
+    console.error('Invalid data passed to buildGraph. Missing or invalid "features" array.', data);
+    return; // Early exit if the data is not valid
+  }
+
+  graph = {};
+  nodeCoords = {};
+
+  data.features.forEach(f => {
+    if (f.geometry && f.geometry.type === 'LineString') {
+      const coords = f.geometry.coordinates;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coordKey(coords[i]);
+        const b = coordKey(coords[i + 1]);
+        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+        addEdge(a, b, dist);
+        addEdge(b, a, dist);
+        nodeCoords[a] = coords[i];
+        nodeCoords[b] = coords[i + 1];
+      }
     }
-
-    graph = {};
-    nodeCoords = {};
-
-    data.features.forEach(f => {
-        if (f.geometry && f.geometry.type === 'LineString') {
-            const coords = f.geometry.coordinates;
-            for (let i = 0; i < coords.length - 1; i++) {
-                const a = coordKey(coords[i]);
-                const b = coordKey(coords[i + 1]);
-                const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
-                addEdge(a, b, dist);
-                addEdge(b, a, dist);
-                nodeCoords[a] = coords[i];
-                nodeCoords[b] = coords[i + 1];
-            }
-        }
-    });
+  });
 }
+
 
 
 function connectNearbySegments(data, threshold = 25) {
