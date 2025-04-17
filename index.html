@@ -73,7 +73,7 @@ map.on('locationerror', onLocationError);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
-let originalTrailData = null;
+let originalTrailData; // must be global so other functions can use it
 let filteredLayer = null;
 let graph = {}, nodeCoords = {};
 let startMarker=null, endMarker=null, clickCount = 0, startNode = null, endNode = null;
