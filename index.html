@@ -440,35 +440,42 @@ function findMultipleRoutes(start, end, numRoutes = 3) {
   const turnEdges = [];
   for (let i = 1; i < firstPath.length - 1; i++) {
     const angle = getAngle(firstPath[i - 1], firstPath[i], firstPath[i + 1]);
-    if (angle < 135) turnEdges.push([firstPath[i], firstPath[i + 1]]);
+    if (angle < 150) turnEdges.push([firstPath[i], firstPath[i + 1]]);
   }
 
-  for (const edge of turnEdges) {
-    const newPath = aStarWithBlockedEdges([edge]);
-    const pathStr = newPath.join('->');
+for (const edge of turnEdges) {
+  const newPath = aStarWithBlockedEdges([edge]);
+  const pathStr = newPath.join('->');
 
-    if (!newPath.length || visitedPaths.has(pathStr)) continue;
+  if (!newPath.length || visitedPaths.has(pathStr)) continue;
 
-    const newLine = pathToLine(newPath);
-    const newLength = turf.length(newLine);
+  const newLine = pathToLine(newPath);
+  const newLength = turf.length(newLine);
 
-    const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
-    if (lengthDiff < 0.05) continue;
+  const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
+  if (lengthDiff < 0.03) continue;
 
-    const isTooSimilar = allPaths.some(existingPath => {
-      const existingLine = pathToLine(existingPath);
-      const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
-      const overlapLen = turf.length(overlap);
-      return overlapLen / turf.length(newLine) > 0.7;
-    });
+  let overlapLen = 0; // Declare overlapLen here so we can log it
+  const isTooSimilar = allPaths.some(existingPath => {
+    const existingLine = pathToLine(existingPath);
+    const overlap = turf.lineOverlap(existingLine, newLine, { tolerance: 0.0001 });
+    overlapLen = turf.length(overlap);
+    return overlapLen / turf.length(newLine) > 0.85;
+  });
 
-    if (!isTooSimilar) {
-      allPaths.push(newPath);
-      visitedPaths.add(pathStr);
-      if (allPaths.length >= numRoutes) break;
-    }
+  // ✅ Logging attempt details:
+  console.log(`Checking new path: ${pathStr}`);
+  console.log(`  - Length diff: ${(lengthDiff * 100).toFixed(1)}%`);
+  console.log(`  - Overlap ratio: ${(overlapLen / turf.length(newLine)).toFixed(2)}`);
+
+  if (!isTooSimilar) {
+    allPaths.push(newPath);
+    visitedPaths.add(pathStr);
+    if (allPaths.length >= numRoutes) break;
   }
+}
 
+  console.log(`Generated ${allPaths.length} routes.`);
   return allPaths;
 }
 
