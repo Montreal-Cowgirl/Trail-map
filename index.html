@@ -244,18 +244,17 @@ function findClosestNode(latLng) {
   return closestNode;
 }
 
+// In the event listener for 'change' and map click:
 trailFilterSelect.addEventListener('change', () => {
   rebuildTrailNetwork(trailFilterSelect.value);
 
-  // ⬇️ Rebuild trailLine from currently visible filtered trails
   const mode = trailFilterSelect.value;
   const filteredData = filterTrails(mode);
-  
+
   const visibleFeatures = filteredData.features
     .filter(f => f?.geometry?.type === "LineString" && f.geometry.coordinates.length >= 2);
-  
-  const allCoords = visibleFeatures.flatMap(f => f.geometry.coordinates);
 
+  const allCoords = visibleFeatures.flatMap(f => f.geometry.coordinates);
 
   if (allCoords.length >= 2) {
     trailLine = turf.lineString(allCoords);
@@ -264,39 +263,43 @@ trailFilterSelect.addEventListener('change', () => {
     trailLine = null;
   }
 
-  // ⬇️ Reset route state
   clickCount = 0;
   if (startMarker) map.removeLayer(startMarker);
   if (endMarker) map.removeLayer(endMarker);
   if (routeLine) map.removeLayer(routeLine);
   previewLines.forEach(l => map.removeLayer(l));
   previewLines = [];
-  document.getElementById('directions').innerHTML = '';
+
+  // Check if the elements exist before modifying their innerHTML
+  const directionsDiv = document.getElementById('directions');
+  const routeButtonsDiv = document.getElementById('route-buttons');
+  if (directionsDiv) directionsDiv.innerHTML = '';
+  if (routeButtonsDiv) routeButtonsDiv.innerHTML = '';
+
   document.getElementById('distance').textContent = '-';
   document.getElementById('time').textContent = '-';
-  document.getElementById('route-options').innerHTML = '';
 });
 
-
-
-
-let clickState = 0;
-let trailLine;
-  
+// In the map click handler:
 map.on('click', function (e) {
   const latlng = e.latlng;
 
-  // Reset everything after second click
   if (clickState === 2) {
     if (startMarker) map.removeLayer(startMarker);
     if (endMarker) map.removeLayer(endMarker);
     if (routeLine) map.removeLayer(routeLine);
     previewLines.forEach(line => map.removeLayer(line));
     previewLines = [];
-    document.getElementById('route-options').innerHTML = '';
-    document.getElementById('directions').innerHTML = '';
+
+    // Ensure the elements exist before clearing them
+    const routeOptionsDiv = document.getElementById('route-options');
+    const directionsDiv = document.getElementById('directions');
+    if (routeOptionsDiv) routeOptionsDiv.innerHTML = '';
+    if (directionsDiv) directionsDiv.innerHTML = '';
+
     document.getElementById('distance').textContent = '-';
     document.getElementById('time').textContent = '-';
+
     startMarker = null;
     endMarker = null;
     startNode = null;
@@ -304,38 +307,8 @@ map.on('click', function (e) {
     clickState = 0;
     return;
   }
-
-    if (!trailLine) {
-    console.warn("Trail line not loaded yet.");
-    return;
-  }
-
-  // Snap click to nearest point on a trail
-  const snapped = turf.nearestPointOnLine(trailLine, turf.point([latlng.lng, latlng.lat]));
-  const snappedCoords = [...snapped.geometry.coordinates]; // defensive copy
-  const snappedLatLng = L.latLng(snappedCoords[1], snappedCoords[0]);
-  const nearestNode = findClosestNode(snappedLatLng);
-
-  if (clickState === 0) {
-    // Place start marker
-    startMarker = L.marker(snappedLatLng, { icon: startIcon }).addTo(map);
-    startNode = nearestNode;
-    clickState = 1;
-  } else if (clickState === 1) {
-    // Place end marker
-    endMarker = L.marker(snappedLatLng, { icon: endIcon }).addTo(map);
-    endNode = nearestNode;
-
-    if (!startNode || !endNode) {
-      alert("Could not find a nearby trail node.");
-      return;
-    }
-    
-    const routes = findMultipleRoutes(startNode, endNode);
-    renderRouteOptions(routes);
-    clickState = 2;
-  }
 });
+
 
 
   
@@ -498,10 +471,18 @@ for (const edge of turnEdges) {
 
 
 function renderRouteOptions(routes) {
-  const routeOptionsDiv = document.getElementById('route-options');
+  const routeButtonsDiv = document.getElementById('route-buttons');
   const directionsDiv = document.getElementById('directions');
-  routeOptionsDiv.innerHTML = ''; // Clear previous options
-  directionsDiv.innerHTML = ''; // Clear previous directions
+
+  // Ensure the elements exist before trying to modify them
+  if (!routeButtonsDiv || !directionsDiv) {
+    console.error("Error: One or more required elements are missing in the DOM.");
+    return; // Exit if elements are missing
+  }
+
+  // Clear previous options and directions
+  routeButtonsDiv.innerHTML = ''; 
+  directionsDiv.innerHTML = '';
 
   // Remove any preview lines from the map
   previewLines.forEach(line => map.removeLayer(line));
@@ -539,7 +520,7 @@ function renderRouteOptions(routes) {
       renderDirections(route);  // Show directions below the toggle
     };
 
-    routeOptionsDiv.appendChild(button);
+    routeButtonsDiv.appendChild(button);
   });
 
   // Automatically select the first route and render it
@@ -548,6 +529,8 @@ function renderRouteOptions(routes) {
     renderDirections(routes[0]);
   }
 }
+
+
 
 
 
@@ -594,6 +577,7 @@ function renderDirections(path) {
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12);
 }
+
 
 fetch('map.geojson')
   .then(res => res.json())
