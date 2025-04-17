@@ -23,6 +23,20 @@
     .route-option:hover {
       background: #d0d0d0;
     }
+    #route-buttons {
+      margin-bottom: 10px;
+    }
+    
+    #route-buttons button {
+      margin-right: 5px;
+    }
+    
+    .directions-container {
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -39,11 +53,14 @@
   <br /><br />
 
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
-  <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
-  <strong>Directions:</strong>
-  <ol id="directions"></ol>
-  <div id="route-options"></div>
+  <strong>Estimated Time:</strong> <span id="time">-</span> min <br /><br />
+
+  <div id="route-toggle-container">
+    <div id="route-buttons"></div>
+    <div id="directions" class="directions-container"></div>
+  </div>
 </div>
+
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
@@ -481,7 +498,9 @@ for (const edge of turnEdges) {
 
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
+  const directionsDiv = document.getElementById('directions');
   routeOptionsDiv.innerHTML = '';
+  directionsDiv.innerHTML = '';
   previewLines.forEach(line => map.removeLayer(line));
   previewLines = [];
 
@@ -489,28 +508,42 @@ function renderRouteOptions(routes) {
     const routeCoords = route.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
     const totalDist = route.reduce((sum, node, i) => {
       if (i < route.length - 1) {
-        return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[route[i + 1]]));
+        return sum + turf.distance(
+          turf.point(nodeCoords[node]),
+          turf.point(nodeCoords[route[i + 1]])
+        );
       }
       return sum;
     }, 0);
 
     const colors = ['orange', 'purple', 'hotpink'];
-    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5, 5' }).addTo(map);
+    const line = L.polyline(routeCoords, {
+      color: colors[idx % colors.length],
+      weight: 4,
+      dashArray: '5, 5'
+    }).addTo(map);
     previewLines.push(line);
 
-    const routeOption = document.createElement('div');
-    routeOption.classList.add('route-option');
-    routeOption.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
-
-    routeOption.onclick = () => {
-      previewLines.forEach(line => map.removeLayer(line));
-      renderRoute(route);
-      renderDirections(route);
+    // Create a button for the route
+    const button = document.createElement('button');
+    button.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
+    button.style.marginRight = '5px';
+    button.onclick = () => {
+      previewLines.forEach(l => map.removeLayer(l));
+      renderRoute(route);       // draw the selected route
+      renderDirections(route);  // show steps below the toggle
     };
 
-    routeOptionsDiv.appendChild(routeOption);
+    routeOptionsDiv.appendChild(button);
   });
+
+  // Automatically select the first route
+  if (routes.length > 0) {
+    renderRoute(routes[0]);
+    renderDirections(routes[0]);
+  }
 }
+
 
 function renderRoute(path) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
