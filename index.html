@@ -92,9 +92,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let originalTrailData = null;
 let filteredLayer = null;
 let graph = {}, nodeCoords = {};
+let clickState = 0; // 👈 Add this here
 let startMarker=null, endMarker=null, clickCount = 0, startNode = null, endNode = null;
 let routeLine=null, previewLines = [];
-
+  
 const trailFilterSelect = document.getElementById('trailFilter');
 const startIcon = L.icon({
   iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
