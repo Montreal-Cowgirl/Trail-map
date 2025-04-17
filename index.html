@@ -212,8 +212,16 @@ function filterTrails(mode) {
 
 function renderTrails(data) {
   if (filteredLayer) map.removeLayer(filteredLayer);
-  filteredLayer = L.geoJSON(data, { color: 'blue' }).addTo(map);
+
+  const features = data.map(feature =>
+    L.geoJSON(feature, {
+      style: { color: 'blue', weight: 3 }
+    })
+  );
+
+  filteredLayer = L.layerGroup(features).addTo(map);
 }
+
 
 function rebuildTrailNetwork(mode) {
   const filtered = filterTrails(mode);
