@@ -281,7 +281,7 @@ map.on('click', function (e) {
 
   // Snap click to nearest point on a trail
   const snapped = turf.nearestPointOnLine(trailLine, turf.point([latlng.lng, latlng.lat]));
-  const snappedCoords = snapped.geometry.coordinates;
+  const snappedCoords = [...snapped.geometry.coordinates]; // defensive copy
   const snappedLatLng = L.latLng(snappedCoords[1], snappedCoords[0]);
   const nearestNode = findClosestNode(snappedLatLng);
 
