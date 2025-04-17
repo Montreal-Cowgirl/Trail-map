@@ -213,11 +213,12 @@ function filterTrails(mode) {
 function renderTrails(data) {
   if (filteredLayer) map.removeLayer(filteredLayer);
 
-  const features = data.map(feature =>
-    L.geoJSON(feature, {
-      style: { color: 'blue', weight: 3 }
-    })
-  );
+const features = data.features.map(feature =>
+  L.geoJSON(feature, {
+    style: { color: 'blue', weight: 3 }
+  })
+);
+
 
   filteredLayer = L.layerGroup(features).addTo(map);
 }
