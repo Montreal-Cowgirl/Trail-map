@@ -99,24 +99,30 @@ function addEdge(a, b, dist) {
 }
 
 function buildGraph(data) {
-  graph = {};
-  nodeCoords = {};
-
-  data.features.forEach(f => {
-    if (f.geometry.type === 'LineString') {
-      const coords = f.geometry.coordinates;
-      for (let i = 0; i < coords.length - 1; i++) {
-        const a = coordKey(coords[i]);
-        const b = coordKey(coords[i + 1]);
-        const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
-        addEdge(a, b, dist);
-        addEdge(b, a, dist);
-        nodeCoords[a] = coords[i];
-        nodeCoords[b] = coords[i + 1];
-      }
+    if (!data || !data.features || !Array.isArray(data.features)) {
+        console.error("Invalid data passed to buildGraph. Missing or invalid 'features' array.", data);
+        return; // Return early or handle as needed if data is invalid
     }
-  });
+
+    graph = {};
+    nodeCoords = {};
+
+    data.features.forEach(f => {
+        if (f.geometry && f.geometry.type === 'LineString') {
+            const coords = f.geometry.coordinates;
+            for (let i = 0; i < coords.length - 1; i++) {
+                const a = coordKey(coords[i]);
+                const b = coordKey(coords[i + 1]);
+                const dist = turf.distance(turf.point(coords[i]), turf.point(coords[i + 1]));
+                addEdge(a, b, dist);
+                addEdge(b, a, dist);
+                nodeCoords[a] = coords[i];
+                nodeCoords[b] = coords[i + 1];
+            }
+        }
+    });
 }
+
 
 function connectNearbySegments(data, threshold = 25) {
   const lineSegments = [];
