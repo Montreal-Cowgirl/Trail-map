@@ -157,33 +157,15 @@ function updateTrailDisplay(mode) {
   graph = {};
   nodeCoords = {};
 
-  const filtered = {
-    type: "FeatureCollection",
-    features: originalTrailData.features.filter(f => {
-      const rawName = f.properties.name || "";
-      const name = rawName
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-
-      const hasEte = name.includes("ete");
-      const hasHiver = name.includes("hiver");
-      const hasSaison = name.includes("saison");
-
-      if (mode === "all") return true;
-      if (mode === "ete") return hasEte || hasSaison;
-      if (mode === "hiver") return hasHiver || hasSaison;
-
-      return false;
-    })
-  };
+  // Get the filtered trails based on the selected mode
+  const filtered = filterTrails(mode);
 
   filteredLayer = L.geoJSON(filtered, { color: 'blue' }).addTo(map);
   buildGraph(filtered);
   connectNearbySegments(filtered, 25);
 }
 
-  
+
 function filterTrails(mode) {
   const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -213,12 +195,11 @@ function filterTrails(mode) {
 function renderTrails(data) {
   if (filteredLayer) map.removeLayer(filteredLayer);
 
-const features = data.features.map(feature =>
-  L.geoJSON(feature, {
-    style: { color: 'blue', weight: 3 }
-  })
-);
-
+  const features = data.features.map(feature =>
+    L.geoJSON(feature, {
+      style: { color: 'blue', weight: 3 }
+    })
+  );
 
   filteredLayer = L.layerGroup(features).addTo(map);
 }
@@ -226,9 +207,9 @@ const features = data.features.map(feature =>
 
 function rebuildTrailNetwork(mode) {
   const filtered = filterTrails(mode);
-  renderTrails(filtered);
-  buildGraph(filtered);
-  connectNearbySegments(filtered, 25);
+  renderTrails(filtered);  // Correctly pass the filtered data to renderTrails
+  buildGraph(filtered);     // Build the graph with filtered trails
+  connectNearbySegments(filtered, 25);  // Connect nearby segments for filtered trails
 }
 
 function findClosestNode(latLng) {
