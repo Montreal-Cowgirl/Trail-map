@@ -56,10 +56,11 @@
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br /><br />
 
   <div id="route-toggle-container">
-    <div id="route-buttons"></div>
-    <div id="directions" class="directions-container"></div>
+    <div id="route-buttons"></div> <!-- Keeps the buttons here for toggling routes -->
+    <div id="directions" class="directions-container"></div> <!-- Directions container -->
   </div>
 </div>
+
 
 
 <script>
@@ -499,8 +500,10 @@ for (const edge of turnEdges) {
 function renderRouteOptions(routes) {
   const routeOptionsDiv = document.getElementById('route-options');
   const directionsDiv = document.getElementById('directions');
-  routeOptionsDiv.innerHTML = '';
-  directionsDiv.innerHTML = '';
+  routeOptionsDiv.innerHTML = ''; // Clear previous options
+  directionsDiv.innerHTML = ''; // Clear previous directions
+
+  // Remove any preview lines from the map
   previewLines.forEach(line => map.removeLayer(line));
   previewLines = [];
 
@@ -516,6 +519,7 @@ function renderRouteOptions(routes) {
       return sum;
     }, 0);
 
+    // Set up the line for the route
     const colors = ['orange', 'purple', 'hotpink'];
     const line = L.polyline(routeCoords, {
       color: colors[idx % colors.length],
@@ -529,20 +533,22 @@ function renderRouteOptions(routes) {
     button.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
     button.style.marginRight = '5px';
     button.onclick = () => {
+      // Remove previous route previews from the map
       previewLines.forEach(l => map.removeLayer(l));
-      renderRoute(route);       // draw the selected route
-      renderDirections(route);  // show steps below the toggle
+      renderRoute(route);  // Draw the selected route on the map
+      renderDirections(route);  // Show directions below the toggle
     };
 
     routeOptionsDiv.appendChild(button);
   });
 
-  // Automatically select the first route
+  // Automatically select the first route and render it
   if (routes.length > 0) {
     renderRoute(routes[0]);
     renderDirections(routes[0]);
   }
 }
+
 
 
 function renderRoute(path) {
