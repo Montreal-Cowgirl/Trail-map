@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interactive Trail Map v1.005</title>
+  <title>Interactive Trail Map v1.006</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -451,7 +451,7 @@ for (const edge of turnEdges) {
   const newLength = turf.length(newLine);
 
   const lengthDiff = Math.abs(newLength - firstLength) / firstLength;
-  if (lengthDiff < 0.03) continue;
+  if (lengthDiff < 0.01) continue;
 
   let overlapLen = 0; // Declare overlapLen here so we can log it
   const isTooSimilar = allPaths.some(existingPath => {
