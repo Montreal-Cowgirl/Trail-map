@@ -229,17 +229,16 @@ function findClosestNode(latLng) {
 trailFilterSelect.addEventListener('change', () => {
   rebuildTrailNetwork(trailFilterSelect.value);
 
-  // Rebuild trailLine from currently visible filtered trails
-  const visibleFeatures = filteredLayer.getLayers().map(layer => {
-    // Ensure layer is a valid GeoJSON feature with 'geometry'
-    if (layer.feature && layer.feature.geometry) {
-      return layer.feature;
-    }
-    return null;  // Return null if not a valid feature
-  }).filter(feature => feature !== null);  // Remove invalid features
+  // ⬇️ Rebuild trailLine from currently visible filtered trails
+  const visibleFeatures = filteredLayer.getLayers().map(layer => layer.feature);
+  const allCoords = visibleFeatures.flatMap(f => f?.geometry?.coordinates || []);
 
-  const allCoords = visibleFeatures.flatMap(f => f.geometry.coordinates);
-  trailLine = turf.lineString(allCoords);
+  if (allCoords.length >= 2) {
+    trailLine = turf.lineString(allCoords);
+  } else {
+    console.warn("Not enough coordinates to create trailLine.");
+    trailLine = null;
+  }
 
   clickCount = 0;
   if (startMarker) map.removeLayer(startMarker);
@@ -252,6 +251,7 @@ trailFilterSelect.addEventListener('change', () => {
   document.getElementById('time').textContent = '-';
   document.getElementById('route-options').innerHTML = '';
 });
+
 
 
 let clickState = 0;
