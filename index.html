@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interactive Trail Map v1.007</title>
+  <title>Interactive Trail Map v1.008</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -13,27 +13,32 @@
     #map { height: 80vh; width: 100vw; }
     #info { padding: 1rem; background: #f5f5f5; }
     #route-options { margin-top: 1rem; }
+    
     .route-option {
       margin: 4px 0;
       cursor: pointer;
       padding: 4px 8px;
       background: #e0e0e0;
       border-radius: 4px;
+      display: inline-block; /* Ensure buttons are side-by-side */
+      width: auto; /* Prevent buttons from stretching */
     }
+    
     .route-option:hover {
       background: #d0d0d0;
     }
-    /* Ensure route options are stacked vertically */
+    
+    /* Ensure route options are aligned side-by-side */
     #route-options {
       display: flex;
-      flex-direction: column;
-      margin-bottom: 10px;  /* Add space between route options and directions */
+      flex-wrap: wrap;  /* Allow wrapping if there are too many buttons for one row */
+      gap: 10px;  /* Space between buttons */
     }
     
     /* Ensure directions appear below the route options */
     #directions {
       margin-top: 1rem;  /* Add space between the route buttons and directions */
-      padding-left: 20px; /* Optional: Indent directions list */
+      padding-left: 20px; /* Indent directions list if you want it styled like a list */
     }
 
   </style>
