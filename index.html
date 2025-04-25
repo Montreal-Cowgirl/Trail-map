@@ -23,6 +23,19 @@
     .route-option:hover {
       background: #d0d0d0;
     }
+    /* Ensure route options are stacked vertically */
+    #route-options {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;  /* Add space between route options and directions */
+    }
+    
+    /* Ensure directions appear below the route options */
+    #directions {
+      margin-top: 1rem;  /* Add space between the route buttons and directions */
+      padding-left: 20px; /* Optional: Indent directions list */
+    }
+
   </style>
 </head>
 <body>
@@ -40,9 +53,9 @@
 
   <strong>Distance:</strong> <span id="distance">-</span> km <br />
   <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
+  <div id="route-options"></div>
   <strong>Directions:</strong>
   <ol id="directions"></ol>
-  <div id="route-options"></div>
 </div>
 
 <script>
