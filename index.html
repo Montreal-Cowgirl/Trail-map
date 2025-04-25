@@ -38,8 +38,18 @@
   </select>
   <br /><br />
 
-  <strong>Distance:</strong> <span id="distance">-</span> km <br />
-  <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
+<br>
+<label for="routeSelect"><strong>Route:</strong></label>
+<select id="routeSelect"></select>
+<br><br>
+<div id="routeInfo">
+  <div id="distance"></div>
+  <div id="time"></div>
+  <div id="directions"></div>
+</div>
+
+//  <strong>Distance:</strong> <span id="distance">-</span> km <br />
+//  <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
   <strong>Directions:</strong>
   <ol id="directions"></ol>
   <div id="route-options"></div>
@@ -480,37 +490,31 @@ for (const edge of turnEdges) {
 
 
 function renderRouteOptions(routes) {
-  const routeOptionsDiv = document.getElementById('route-options');
-  routeOptionsDiv.innerHTML = '';
-  previewLines.forEach(line => map.removeLayer(line));
-  previewLines = [];
+  const routeSelect = document.getElementById('routeSelect');
+  routeSelect.innerHTML = ''; // Clear old options
 
-  routes.forEach((route, idx) => {
-    const routeCoords = route.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
-    const totalDist = route.reduce((sum, node, i) => {
-      if (i < route.length - 1) {
-        return sum + turf.distance(turf.point(nodeCoords[node]), turf.point(nodeCoords[route[i + 1]]));
-      }
-      return sum;
-    }, 0);
-
-    const colors = ['orange', 'purple', 'hotpink'];
-    const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5, 5' }).addTo(map);
-    previewLines.push(line);
-
-    const routeOption = document.createElement('div');
-    routeOption.classList.add('route-option');
-    routeOption.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
-
-    routeOption.onclick = () => {
-      previewLines.forEach(line => map.removeLayer(line));
-      renderRoute(route);
-      renderDirections(route);
-    };
-
-    routeOptionsDiv.appendChild(routeOption);
+  routes.forEach((route, index) => {
+    const option = document.createElement('option');
+    const distanceKm = (turf.length(route)).toFixed(2); // Assuming turf.length returns kilometers
+    option.value = index;
+    option.textContent = `Route ${index + 1}: ${distanceKm} km`;
+    routeSelect.appendChild(option);
   });
+
+  // Show first route by default
+  displayRouteAndDirections(routes[0]);
+
+  // Handle route selection change
+  routeSelect.onchange = function(e) {
+    const selectedRoute = routes[parseInt(e.target.value, 10)];
+    displayRouteAndDirections(selectedRoute);
+  };
 }
+function displayRouteAndDirections(route) {
+  drawRoute(route); // Your existing function to draw route on map
+  updateDirections(route); // Your existing function to update directions, time, distance
+}
+
 
 function renderRoute(path) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
