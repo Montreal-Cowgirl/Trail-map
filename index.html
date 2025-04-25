@@ -29,33 +29,28 @@
 
 <div id="map"></div>
 
-<div id="info">
-  <label for="trailFilter"><strong>Trail Mode:</strong></label>
+<!-- TRAIL MODE + ROUTE SELECT -->
+<div style="margin-bottom: 10px;">
+  <label for="trailFilter">Trail Mode:</label>
   <select id="trailFilter">
     <option value="all">All</option>
     <option value="ete">Été + Saison</option>
     <option value="hiver">Hiver + Saison</option>
   </select>
-  <br /><br />
 
-<br>
-<label for="routeSelect"><strong>Route:</strong></label>
-<select id="routeSelect"></select>
-<br><br>
-<div id="routeInfo">
-  <div id="distance"></div>
-  <div id="time"></div>
+  <label for="routeSelect" style="margin-left:20px;">Route:</label>
+  <select id="routeSelect"></select>
+</div>
+
+<!-- DISTANCE / TIME / DIRECTIONS -->
+<div id="routeDetails">
+  <div id="distanceTime"></div>
   <div id="directions"></div>
 </div>
 
-//  <strong>Distance:</strong> <span id="distance">-</span> km <br />
-//  <strong>Estimated Time:</strong> <span id="time">-</span> min <br />
-  <strong>Directions:</strong>
-  <ol id="directions"></ol>
-  <div id="route-options"></div>
-</div>
-
 <script>
+let routes = []; // Store calculated routes globally
+  
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 // Request and show user location with a marker
 map.locate({ setView: true, maxZoom: 16 });
@@ -489,33 +484,53 @@ for (const edge of turnEdges) {
 
 
 
-function renderRouteOptions(routes) {
-  const routeSelect = document.getElementById('routeSelect');
-  routeSelect.innerHTML = ''; // Clear old options
+function renderRouteOptions(routeList) {
+  routes = routeList; // Save routes
 
-  routes.forEach((route, index) => {
+  const routeSelect = document.getElementById('routeSelect');
+  routeSelect.innerHTML = '';
+
+  routeList.forEach((route, index) => {
     const option = document.createElement('option');
-    const distanceKm = (turf.length(route)).toFixed(2); // Assuming turf.length returns kilometers
     option.value = index;
-    option.textContent = `Route ${index + 1}: ${distanceKm} km`;
+    option.textContent = `Route ${index + 1}: ${(turf.length(route.path, {units: 'kilometers'})).toFixed(2)} km`;
     routeSelect.appendChild(option);
   });
 
-  // Show first route by default
-  displayRouteAndDirections(routes[0]);
-
-  // Handle route selection change
-  routeSelect.onchange = function(e) {
-    const selectedRoute = routes[parseInt(e.target.value, 10)];
-    displayRouteAndDirections(selectedRoute);
-  };
+  if (routeList.length > 0) {
+    displayRouteDetails(0); // Display first route by default
+  }
 }
-function displayRouteAndDirections(route) {
-  drawRoute(route); // Your existing function to draw route on map
-  updateDirections(route); // Your existing function to update directions, time, distance
+function displayRouteDetails(routeIndex) {
+  const selectedRoute = routes[routeIndex];
+
+  if (!selectedRoute) return;
+
+  const distance = turf.length(selectedRoute.path, {units: 'kilometers'});
+  const speed = 5; // Assume 5km/h walking speed
+  const time = (distance / speed) * 60; // minutes
+
+  document.getElementById('distanceTime').innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)} km<br><strong>Estimated Time:</strong> ${Math.round(time)} min`;
+
+  // Render Directions
+  let directionsHtml = '<strong>Directions:</strong><ol>';
+  selectedRoute.directions.forEach((step) => {
+    directionsHtml += `<li>${step.instruction}</li>`;
+  });
+  directionsHtml += '</ol>';
+  document.getElementById('directions').innerHTML = directionsHtml;
+
+  // Draw the route on the map (implement your drawRoute function)
+  drawRoute(selectedRoute.path);
 }
 
-
+// Listen for route selection changes
+const routeSelectElement = document.getElementById('routeSelect');
+routeSelectElement.addEventListener('change', (e) => {
+  const selectedIndex = parseInt(e.target.value);
+  displayRouteDetails(selectedIndex);
+});
+  
 function renderRoute(path) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
   if (routeLine) map.removeLayer(routeLine);
