@@ -498,10 +498,18 @@ function renderRouteOptions(routes) {
     const line = L.polyline(routeCoords, { color: colors[idx % colors.length], weight: 4, dashArray: '5, 5' }).addTo(map);
     previewLines.push(line);
 
-    const routeOption = document.createElement('div');
+    const routeOption = document.createElement('button');
     routeOption.classList.add('route-option');
     routeOption.textContent = `Route ${idx + 1}: ${totalDist.toFixed(2)} km`;
 
+    // Optional: Add some styling for the button
+    routeOption.style.margin = "4px";
+    routeOption.style.padding = "6px 12px";
+    routeOption.style.border = "1px solid #888";
+    routeOption.style.borderRadius = "4px";
+    routeOption.style.backgroundColor = "#f0f0f0";
+    routeOption.style.cursor = "pointer";
+    
     routeOption.onclick = () => {
       previewLines.forEach(line => map.removeLayer(line));
       renderRoute(route);
