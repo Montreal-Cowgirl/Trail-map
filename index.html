@@ -547,12 +547,14 @@ function renderRoute(path) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
   if (routeLine) map.removeLayer(routeLine);
   routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
+  renderDirections(path);
 }
 
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
   let totalDistance = 0, prevBearing = null, distanceSinceLastTurn = 0;
+  const directions = [];
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -575,7 +577,16 @@ function renderDirections(path) {
 
           const li = document.createElement('li');
           li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
+          li.dataset.lat = to[1];
+          li.dataset.lng = to[0];
           directionsList.appendChild(li);
+
+          directions.push({
+            text: li.textContent,
+            lat: to[1],
+            lng: to[0]
+          });
+
           distanceSinceLastTurn = 0;
         }
       }
@@ -585,7 +596,10 @@ function renderDirections(path) {
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12);
+
+  updateDirectionsOnProgress(directions); // GPS tracking kicks in here
 }
+
 
 fetch('map.geojson')
   .then(res => res.json())
