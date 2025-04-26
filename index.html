@@ -263,6 +263,7 @@ function connectNearbySegments(data, threshold = 25) {
   }
 }
 function updateTrailDisplay(mode) {
+  showSpinner();  // Show spinner before updating the trails
   if (filteredLayer) map.removeLayer(filteredLayer);
   graph = {};
   nodeCoords = {};
@@ -273,6 +274,8 @@ function updateTrailDisplay(mode) {
   filteredLayer = L.geoJSON(filtered, { color: 'blue' }).addTo(map);
   buildGraph(filtered);
   connectNearbySegments(filtered, 25);
+
+  hideSpinner();  // Hide spinner once trails are rendered and network built
 }
 
 
@@ -319,10 +322,12 @@ function renderTrails(data) {
 
 
 function rebuildTrailNetwork(mode) {
+  showSpinner();  // Show spinner before starting the network rebuild
   const filtered = filterTrails(mode);
   renderTrails(filtered);  // Correctly pass the filtered data to renderTrails
   buildGraph(filtered);     // Build the graph with filtered trails
   connectNearbySegments(filtered, 25);  // Connect nearby segments for filtered trails
+  hideSpinner();  // Hide spinner once the network is rebuilt
 }
 
 function findClosestNode(latLng) {
@@ -339,6 +344,8 @@ function findClosestNode(latLng) {
 }
 
 trailFilterSelect.addEventListener('change', () => {
+  showSpinner(); // Show spinner when mode changes
+
   rebuildTrailNetwork(trailFilterSelect.value);
 
   // ⬇️ Rebuild trailLine from currently visible filtered trails
@@ -369,6 +376,7 @@ trailFilterSelect.addEventListener('change', () => {
   document.getElementById('distance').textContent = '-';
   document.getElementById('time').textContent = '-';
   document.getElementById('route-options').innerHTML = '';
+  hideSpinner(); // Hide spinner once the mode change is complete
 });
 
 
