@@ -105,20 +105,27 @@ let userMarker = L.marker([0, 0]).addTo(map).bindPopup("You are here").openPopup
 
 // Function to handle location found
 function onLocationFound(e) {
-  const lat = e.latlng.lat;
-  const lng = e.latlng.lng;
-  const radius = e.accuracy;
+  const currentTime = Date.now();
+  if (currentTime - lastUpdateTime > updateInterval) {
+    lastUpdateTime = currentTime;
 
-  // Update the user marker's position
-  userMarker.setLatLng(e.latlng);
-  userMarker.setPopupContent("You are here");
+    const lat = e.coords.latitude;
+    const lng = e.coords.longitude;
+    const accuracy = e.coords.accuracy;
 
-  // Optional: show accuracy circle (you can uncomment this if needed)
-  // L.circle(e.latlng, radius).addTo(map);
+    const latlng = [lat, lng];
 
-  // Center the map on the user's location
-  map.setView([lat, lng], map.getZoom());
+    // Update or create the user marker
+    userMarker.setLatLng(latlng).setPopupContent("You are here");
+
+    // Center the map on the user
+    map.setView(latlng, map.getZoom());
+
+    // Optional: show accuracy circle
+    // L.circle(latlng, accuracy).addTo(map);
+  }
 }
+
 
 // Function to handle errors
 function onLocationError(e) {
