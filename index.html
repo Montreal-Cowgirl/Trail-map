@@ -98,45 +98,39 @@
 </div>
 
 <script>
-let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
+  let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
 
-// Create a variable to hold the user marker
-let userMarker = L.marker([0, 0]).addTo(map).bindPopup("You are here").openPopup();
+  // Initial map location request
+  map.locate({ setView: true, maxZoom: 16 });
 
-// Function to handle location found
-function onLocationFound(e) {
-  const currentTime = Date.now();
-  if (currentTime - lastUpdateTime > updateInterval) {
-    lastUpdateTime = currentTime;
+  // Variables to manage update timing
+  let lastUpdateTime = 0;
+  const updateInterval = 5000; // 5 seconds
+  let userMarker = null;
 
-    const lat = e.coords.latitude;
-    const lng = e.coords.longitude;
-    const accuracy = e.coords.accuracy;
+  function onLocationFound(e) {
+    const now = Date.now();
+    if (now - lastUpdateTime < updateInterval) return; // Skip if too soon
+    lastUpdateTime = now;
 
-    const latlng = [lat, lng];
+    const latlng = e.coords ? [e.coords.latitude, e.coords.longitude] : e.latlng;
 
-    // Update or create the user marker
-    userMarker.setLatLng(latlng).setPopupContent("You are here");
+    if (!userMarker) {
+      userMarker = L.marker(latlng).addTo(map).bindPopup("You are here").openPopup();
+    } else {
+      userMarker.setLatLng(latlng);
+    }
 
-    // Center the map on the user
-    map.setView(latlng, map.getZoom());
-
-    // Optional: show accuracy circle
-    // L.circle(latlng, accuracy).addTo(map);
+    // Optional: add a circle showing GPS accuracy
+    // const radius = e.coords ? e.coords.accuracy : e.accuracy;
+    // L.circle(latlng, { radius }).addTo(map);
   }
-}
 
+  function onLocationError(e) {
+    alert("Location access denied or unavailable.");
+  }
 
-// Function to handle errors
-function onLocationError(e) {
-  alert("Location access denied or unavailable.");
-}
-  
-let lastUpdateTime = 0;
-const updateInterval = 5000; // milliseconds (e.g., 5 seconds between updates)
-
-// Start watching the user's position
-if (navigator.geolocation) {
+  // Continuous location tracking
   navigator.geolocation.watchPosition(onLocationFound, onLocationError, {
     enableHighAccuracy: false, //  Use lower accuracy for better battery efficiency
     maximumAge: 30000, // Cache the position for a max of 30 seconds
