@@ -64,7 +64,6 @@
   <strong>Directions:</strong>
   <ol id="directions"></ol>
 </div>
-<div id="controls"></div>
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
@@ -548,14 +547,12 @@ function renderRoute(path) {
   const routeCoords = path.map(node => [nodeCoords[node][1], nodeCoords[node][0]]);
   if (routeLine) map.removeLayer(routeLine);
   routeLine = L.polyline(routeCoords, { color: 'green', weight: 5 }).addTo(map);
-  renderDirections(path);
 }
 
 function renderDirections(path) {
   const directionsList = document.getElementById('directions');
   directionsList.innerHTML = '';
   let totalDistance = 0, prevBearing = null, distanceSinceLastTurn = 0;
-  const directions = [];
 
   path.forEach((node, idx) => {
     if (idx < path.length - 1) {
@@ -578,16 +575,7 @@ function renderDirections(path) {
 
           const li = document.createElement('li');
           li.textContent = `${direction} in ${Math.round(distanceSinceLastTurn * 1000)}m`;
-          li.dataset.lat = to[1];
-          li.dataset.lng = to[0];
           directionsList.appendChild(li);
-
-          directions.push({
-            text: li.textContent,
-            lat: to[1],
-            lng: to[0]
-          });
-
           distanceSinceLastTurn = 0;
         }
       }
@@ -597,44 +585,7 @@ function renderDirections(path) {
 
   document.getElementById('distance').textContent = totalDistance.toFixed(2);
   document.getElementById('time').textContent = Math.round(totalDistance * 12);
-
-  updateDirectionsOnProgress(directions); // GPS tracking kicks in here
 }
-function simulateGPSMovement(routeCoords, speedMps = 1.4) {
-  let index = 0;
-
-  function step() {
-    if (index >= routeCoords.length - 1) return;
-
-    const from = routeCoords[index];
-    const to = routeCoords[index + 1];
-    const dist = turf.distance(turf.point(from), turf.point(to), { units: 'meters' });
-    const steps = Math.ceil(dist / speedMps);
-    let stepCount = 0;
-
-    const interval = setInterval(() => {
-      if (stepCount >= steps) {
-        clearInterval(interval);
-        index++;
-        step(); // move to next segment
-        return;
-      }
-
-      const t = stepCount / steps;
-      const interpolated = [
-        from[0] + t * (to[0] - from[0]),
-        from[1] + t * (to[1] - from[1])
-      ];
-
-      const latlng = { lat: interpolated[1], lng: interpolated[0] };
-      updateDirectionsOnProgress([{ lat: latlng.lat, lng: latlng.lng }], true); // simulate GPS tick
-      stepCount++;
-    }, 1000);
-  }
-
-  step();
-}
-
 
 fetch('map.geojson')
   .then(res => res.json())
@@ -648,7 +599,7 @@ fetch('map.geojson')
 
     updateTrailDisplay('all'); // initial render
   });
-  
+
 
 </script>
 
