@@ -131,14 +131,16 @@
   }
 
   // Continuous location tracking
+if ("geolocation" in navigator) {
   navigator.geolocation.watchPosition(onLocationFound, onLocationError, {
-    enableHighAccuracy: false, //  Use lower accuracy for better battery efficiency
-    maximumAge: 30000, // Cache the position for a max of 30 seconds
-    timeout: 20000, // Wait for a max of 20 seconds to get a position
+    enableHighAccuracy: false,
+    maximumAge: 30000,
+    timeout: 20000,
   });
 } else {
   alert("Geolocation is not supported by this browser.");
 }
+
 
 
 map.on('locationfound', onLocationFound);
