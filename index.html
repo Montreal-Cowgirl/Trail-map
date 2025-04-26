@@ -262,6 +262,8 @@ function connectNearbySegments(data, threshold = 25) {
     }
   }
 }
+let isLoading = true;  // Flag to track initial loading
+  
 function updateTrailDisplay(mode) {
  if (isLoading) {
    showSpinner();  // Show spinner before updating the trails
@@ -328,10 +330,12 @@ function renderTrails(data) {
 
 function rebuildTrailNetwork(mode) {
   showSpinner();  // Show spinner before starting the network rebuild
+  
   const filtered = filterTrails(mode);
   renderTrails(filtered);  // Correctly pass the filtered data to renderTrails
   buildGraph(filtered);     // Build the graph with filtered trails
   connectNearbySegments(filtered, 25);  // Connect nearby segments for filtered trails
+  
   hideSpinner();  // Hide spinner once the network is rebuilt
 }
 
@@ -381,6 +385,7 @@ trailFilterSelect.addEventListener('change', () => {
   document.getElementById('distance').textContent = '-';
   document.getElementById('time').textContent = '-';
   document.getElementById('route-options').innerHTML = '';
+  
   hideSpinner(); // Hide spinner once the mode change is complete
 });
 
