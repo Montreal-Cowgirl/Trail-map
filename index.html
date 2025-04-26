@@ -263,7 +263,9 @@ function connectNearbySegments(data, threshold = 25) {
   }
 }
 function updateTrailDisplay(mode) {
-  showSpinner();  // Show spinner before updating the trails
+ if (isLoading) {
+   showSpinner();  // Show spinner before updating the trails
+  }
   if (filteredLayer) map.removeLayer(filteredLayer);
   graph = {};
   nodeCoords = {};
@@ -275,7 +277,10 @@ function updateTrailDisplay(mode) {
   buildGraph(filtered);
   connectNearbySegments(filtered, 25);
 
-  hideSpinner();  // Hide spinner once trails are rendered and network built
+  if (isLoading) {
+    hideSpinner(); // Hide spinner after the first load is complete
+    isLoading = false; // Set loading flag to false after initial load
+  }
 }
 
 
