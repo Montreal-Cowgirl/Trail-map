@@ -99,23 +99,43 @@
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
-// Request and show user location with a marker
-map.locate({ setView: true, maxZoom: 16 });
 
+// Create a variable to hold the user marker
+let userMarker = L.marker([0, 0]).addTo(map).bindPopup("You are here").openPopup();
+
+// Function to handle location found
 function onLocationFound(e) {
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
   const radius = e.accuracy;
-  const userMarker = L.marker(e.latlng)
-    .addTo(map)
-    .bindPopup("You are here")
-    .openPopup();
 
-  // Optional: show accuracy circle
+  // Update the user marker's position
+  userMarker.setLatLng(e.latlng);
+  userMarker.setPopupContent("You are here");
+
+  // Optional: show accuracy circle (you can uncomment this if needed)
   // L.circle(e.latlng, radius).addTo(map);
+
+  // Center the map on the user's location
+  map.setView([lat, lng], map.getZoom());
 }
 
+// Function to handle errors
 function onLocationError(e) {
   alert("Location access denied or unavailable.");
 }
+
+// Start watching the user's position
+if (navigator.geolocation) {
+  navigator.geolocation.watchPosition(onLocationFound, onLocationError, {
+    enableHighAccuracy: false, //  Use lower accuracy for better battery efficiency
+    maximumAge: 30000, // Cache the position for a max of 30 seconds
+    timeout: 20000, // Wait for a max of 20 seconds to get a position
+  });
+} else {
+  alert("Geolocation is not supported by this browser.");
+}
+
 
 map.on('locationfound', onLocationFound);
 map.on('locationerror', onLocationError);
