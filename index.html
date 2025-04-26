@@ -64,6 +64,7 @@
   <strong>Directions:</strong>
   <ol id="directions"></ol>
 </div>
+<div id="controls"></div>
 
 <script>
 let map = L.map('map', { doubleClickZoom: false }).setView([45.6362, -74.0345], 15);
@@ -599,6 +600,40 @@ function renderDirections(path) {
 
   updateDirectionsOnProgress(directions); // GPS tracking kicks in here
 }
+function simulateGPSMovement(routeCoords, speedMps = 1.4) {
+  let index = 0;
+
+  function step() {
+    if (index >= routeCoords.length - 1) return;
+
+    const from = routeCoords[index];
+    const to = routeCoords[index + 1];
+    const dist = turf.distance(turf.point(from), turf.point(to), { units: 'meters' });
+    const steps = Math.ceil(dist / speedMps);
+    let stepCount = 0;
+
+    const interval = setInterval(() => {
+      if (stepCount >= steps) {
+        clearInterval(interval);
+        index++;
+        step(); // move to next segment
+        return;
+      }
+
+      const t = stepCount / steps;
+      const interpolated = [
+        from[0] + t * (to[0] - from[0]),
+        from[1] + t * (to[1] - from[1])
+      ];
+
+      const latlng = { lat: interpolated[1], lng: interpolated[0] };
+      updateDirectionsOnProgress([{ lat: latlng.lat, lng: latlng.lng }], true); // simulate GPS tick
+      stepCount++;
+    }, 1000);
+  }
+
+  step();
+}
 
 
 fetch('map.geojson')
@@ -613,7 +648,7 @@ fetch('map.geojson')
 
     updateTrailDisplay('all'); // initial render
   });
-
+  
 
 </script>
 
