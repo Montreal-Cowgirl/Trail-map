@@ -131,6 +131,9 @@ function onLocationFound(e) {
 function onLocationError(e) {
   alert("Location access denied or unavailable.");
 }
+  
+let lastUpdateTime = 0;
+const updateInterval = 5000; // milliseconds (e.g., 5 seconds between updates)
 
 // Start watching the user's position
 if (navigator.geolocation) {
