@@ -201,10 +201,13 @@ function filterTrails(mode) {
       const hasEte = name.includes("ete");
       const hasHiver = name.includes("hiver");
       const hasSaison = name.includes("saison");
-    
+      const hasChevaux = name.includes("chevaux");
+
+      // Filter based on the selected mode
       if (mode === "all") return true;
-      if (mode === "ete") return hasEte || hasSaison;
-      if (mode === "hiver") return hasHiver || hasSaison;
+      if (mode === "ete" && (hasEte || hasSaison) && !hasChevaux) return true; // Été (accessible aux voitures)
+      if (mode === "ete_chevaux" && (hasEte || hasSaison)) return true; // Été (chevaux seulement)
+      if (mode === "hiver" && (hasHiver || hasSaison)) return true; // Hiver (accessible en sleigh)
     
       return false;
     })
