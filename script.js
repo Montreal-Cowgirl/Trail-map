@@ -63,8 +63,8 @@ function buildGraph(geojson) {
 }
 
 function findShortestPath(start, end) {
-  const startKey = snapToGraph(start);
-  const endKey = snapToGraph(end);
+  const startKey = snapToNearestPointOnLine(start);
+  const endKey = snapToNearestPointOnLine(end);
   if (!startKey || !endKey) return [];
 
   const openSet = new Set([startKey]);
@@ -103,20 +103,47 @@ function reconstructPath(cameFrom, current) {
   return totalPath.map(parseCoord);
 }
 
-function snapToGraph(latlng) {
-  let closest = null;
+function snapToNearestPointOnLine(latlng) {
+  const pt = turf.point([latlng.lng, latlng.lat]);
   let minDist = Infinity;
-  const pt = [latlng.lng, latlng.lat];
+  let snappedPoint = null;
+  let nearestSegment = null;
 
-  for (let key in trailGraph) {
-    const d = turf.distance(turf.point(pt), turf.point(parseCoord(key)));
-    if (d < minDist) {
-      minDist = d;
-      closest = key;
+  trailData.features.forEach(feature => {
+    const line = turf.lineString(feature.geometry.coordinates);
+    const snapped = turf.nearestPointOnLine(line, pt);
+    const dist = turf.distance(pt, snapped);
+    if (dist < minDist) {
+      minDist = dist;
+      snappedPoint = snapped;
+      nearestSegment = findNearestSegment(line, snapped.geometry.coordinates);
     }
+  });
+
+  if (!snappedPoint || !nearestSegment) return null;
+
+  const newNodeKey = snappedPoint.geometry.coordinates.join(',');
+
+  // Add snapped point to graph between nearest segment
+  const [a, b] = nearestSegment;
+  const keyA = a.join(',');
+  const keyB = b.join(',');
+
+  const distA = turf.distance(turf.point(a), snappedPoint);
+  const distB = turf.distance(turf.point(b), snappedPoint);
+
+  // Remove the original edge if it exists
+  if (trailGraph[keyA]) {
+    trailGraph[keyA] = trailGraph[keyA].filter(n => n.node !== keyB);
   }
-  return closest;
-}
+  if (trailGraph[keyB]) {
+    trailGraph[keyB] = trailGraph[keyB].filter(n => n.node !== keyA);
+  }
+
+  // Insert new edges
+  if (!trailGraph[keyA]) trailGraph[keyA] = [];
+  if (!trailGraph[keyB]) trailGraph[keyB]
+
 
 function parseCoord(str) {
   const [x, y] = str.split(',').map(Number);
