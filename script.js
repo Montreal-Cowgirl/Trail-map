@@ -142,7 +142,30 @@ function snapToNearestPointOnLine(latlng) {
 
   // Insert new edges
   if (!trailGraph[keyA]) trailGraph[keyA] = [];
-  if (!trailGraph[keyB]) trailGraph[keyB]
+  if (!trailGraph[keyB]) trailGraph[keyB] = [];
+  
+  trailGraph[keyA].push({ node: newNodeKey, weight: distA });
+  trailGraph[keyB].push({ node: newNodeKey, weight: distB });
+  
+  trailGraph[newNodeKey] = [
+    { node: keyA, weight: distA },
+    { node: keyB, weight: distB }
+  ];
+  return newNodeKey;
+}
+
+function findNearestSegment(line, snappedCoords) {
+  const coords = line.geometry.coordinates;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const a = coords[i];
+    const b = coords[i + 1];
+    const seg = turf.lineString([a, b]);
+    const snapped = turf.nearestPointOnLine(seg, turf.point(snappedCoords));
+    const d = turf.distance(snapped, turf.point(snappedCoords));
+    if (d < 0.00001) return [a, b];
+  }
+  return null;
+}
 
 
 function parseCoord(str) {
