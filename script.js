@@ -70,7 +70,10 @@ function findShortestPath(start, end) {
   const openSet = new Set([startKey]);
   const cameFrom = {};
   const gScore = { [startKey]: 0 };
-  const fScore = { [startKey]: turf.distance(turf.point(start), turf.point(end)) };
+  const fScore = {
+    [startKey]: turf.distance(turf.point([start.lng, start.lat]), turf.point([end.lng, end.lat]))
+  };
+
 
   while (openSet.size > 0) {
     let current = [...openSet].reduce((a, b) =>
@@ -169,9 +172,9 @@ function findNearestSegment(line, snappedCoords) {
 
 
 function parseCoord(str) {
-  const [x, y] = str.split(',').map(Number);
-  return [y, x];
+  return str.split(',').map(Number); // returns [lng, lat]
 }
+
 
 let activeRoute = null;
 
