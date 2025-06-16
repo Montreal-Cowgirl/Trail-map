@@ -175,6 +175,10 @@ function parseCoord(str) {
   return str.split(',').map(Number); // returns [lng, lat]
 }
 
+function toLeafletLatLng(coord) {
+  // coord is [lng, lat]
+  return [coord[1], coord[0]];
+}
 
 let activeRoute = null;
 
@@ -214,7 +218,7 @@ function generateRoutes(startLatLng, endLatLng) {
   }
 
   routes.forEach((route, i) => {
-    const latlngs = route.map(([lat, lng]) => [lat, lng]);
+    const latlngs = route.map(toLeafletLatLng);
     const layer = L.polyline(latlngs, { color: colors[i], weight: 5 }).addTo(map);
     layer.on('click', () => selectRoute(latlngs, colors[i]));
     routeLayers.push(layer);
